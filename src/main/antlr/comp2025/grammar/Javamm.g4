@@ -13,53 +13,54 @@ END_OF_LINE_COMMENT : '//' .*? '\n' -> skip ;
 WS : [ \t\n\r\f]+ -> skip ;
 
 program
-    : (importDeclaration)* classDeclaration EOF
+    : (importDecl)* classDecl EOF
     ;
 
-importDeclaration
+importDecl
     : 'import' ID ('.' ID)* ';'
     ;
 
-classDeclaration
-    : 'class' ID ( 'extends' ID )? '{' ( varDeclaration )* ( methodDeclaration )* '}'
+classDecl
+    : 'class' ID ( 'extends' ID )? '{' ( varDecl )* ( methodDecl )* '}'
     ;
 
-varDeclaration
+varDecl
     : type ID ';'
     ;
 
-methodDeclaration
-    : ('public')? type ID '(' ( type ID ( ',' type ID )* )? ')' '{' ( varDeclaration)* ( statement )* 'return' expression ';' '}'
-    | ('public')? 'static' 'void' 'main' '(' 'String' '[' ']' ID ')' '{' ( varDeclaration )* ( statement )* '}'
+methodDecl
+    : ('public')? type ID '(' ( type ID ( ',' type ID )* )? ')' '{' ( varDecl)* ( stmt )* 'return' expr ';' '}'
+    | ('public')? 'static' 'void' 'main' '(' 'String' '[' ']' ID ')' '{' ( varDecl )* ( stmt )* '}'
     ;
 
 type
     : 'int' '[' ']'
     | 'int' '...'
+    | 'String'
     | 'boolean'
     | 'int'
     | ID
     ;
 
-statement
-    : '{' ( statement )* '}'
-    | 'if' '(' expression ')' statement 'else' statement
-    | 'while' '(' expression ')' statement
-    | expression ';'
-    | ID '=' expression ';'
-    | ID '[' expression ']' '=' expression ';'
+stmt
+    : '{' ( stmt )* '}'
+    | 'if' '(' expr ')' stmt 'else' stmt
+    | 'while' '(' expr ')' stmt
+    | expr ';'
+    | ID '=' expr ';'
+    | ID '[' expr ']' '=' expr ';'
     ;
 
-expression
-    : expression ('&&' | '<' | '+' | '-' | '*' | '/' ) expression
-    | expression '[' expression ']'
-    | expression '.' 'length'
-    | expression '.' ID '(' ( expression ( ',' expression )* )? ')'
-    | 'new' 'int' '[' expression ']'
+expr
+    : expr ('&&' | '<' | '+' | '-' | '*' | '/' ) expr
+    | expr '[' expr ']'
+    | expr '.' 'length'
+    | expr '.' ID '(' ( expr ( ',' expr )* )? ')'
+    | 'new' 'int' '[' expr ']'
     | 'new' ID '(' ')'
-    | '!' expression
-    | '(' expression ')'
-    | '[' ( expression ( ',' expression )* )? ']'
+    | '!' expr
+    | '(' expr ')'
+    | '[' ( expr ( ',' expr )* )? ']'
     | INT
     | 'true'
     | 'false'
