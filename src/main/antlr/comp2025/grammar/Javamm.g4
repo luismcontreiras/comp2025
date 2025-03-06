@@ -52,20 +52,23 @@ stmt
     ;
 
 expr
-    : expr ('&&' | '<' | '+' | '-' | '*' | '/' ) expr
-    | expr '[' expr ']'
-    | expr '.' 'length'
-    | expr '.' ID '(' ( expr ( ',' expr )* )? ')'
-    | 'new' 'int' '[' expr ']'
-    | 'new' ID '(' ')'
-    | '!' expr
-    | '(' expr ')'
-    | '[' ( expr ( ',' expr )* )? ']'
-    | INT
-    | 'true'
-    | 'false'
-    | ID
-    | 'this'
+    : '(' expr ')' #Parenthesis
+    | '[' ( expr ( ',' expr )* )? ']' #ArrayLiteral
+    | INT #Integer
+    | 'true' #BoolTrue
+    | 'false' #BoolFalse
+    | ID #Identifier
+    | 'this' #This
+    | '!' expr #Negation
+    | 'new' 'int' '[' expr ']' #NewIntArray
+    | 'new' ID '(' ')' #NewObject
+    | expr '[' expr ']' #ArrayAccess
+    | expr '.' 'length' #Length
+    | expr '.' ID '(' ( expr ( ',' expr )* )? ')' #MethodCal
+    | expr ('*' | '/') expr #BinaryOp
+    | expr ('+' | '-') expr #BinaryOp
+    | expr '<' expr #BinaryOp
+    | expr '&&' expr #BinaryOp
     ;
 
 
