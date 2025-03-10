@@ -43,32 +43,51 @@ type
     ;
 
 stmt
+    : withElse
+    | noElse
+    ;
+
+otherStmt
     : '{' ( stmt )* '}'
-    | 'if' '(' expr ')' stmt 'else' stmt
     | 'while' '(' expr ')' stmt
     | expr ';'
     | ID '=' expr ';'
     | ID '[' expr ']' '=' expr ';'
     ;
 
-expr
-    : '(' expr ')' #Parenthesis
-    | '[' ( expr ( ',' expr )* )? ']' #ArrayLiteral
-    | INT #Integer
-    | 'true' #BoolTrue
-    | 'false' #BoolFalse
-    | ID #Identifier
-    | 'this' #This
-    | '!' expr #Negation
-    | 'new' 'int' '[' expr ']' #NewIntArray
-    | 'new' ID '(' ')' #NewObject
-    | expr '[' expr ']' #ArrayAccess
-    | expr '.' 'length' #Length
-    | expr '.' ID '(' ( expr ( ',' expr )* )? ')' #MethodCal
-    | expr ('*' | '/') expr #BinaryOp
-    | expr ('+' | '-') expr #BinaryOp
-    | expr '<' expr #BinaryOp
-    | expr '&&' expr #BinaryOp
+withElse
+    : 'if' '(' expr ')' withElse 'else' withElse
+    | otherStmt
     ;
+
+noElse
+    : 'if' '(' expr ')' stmt
+    | 'if' '(' expr ')' withElse 'else' noElse
+    ;
+
+expr
+    : '(' expr ')' #ParenthesizedExpr
+    | '[' ( expr ( ',' expr )* )? ']' #ArrayLiteralExpr
+    | value=INT #IntegerLiteral
+    | value='true' #BooleanTrue
+    | value='false' #BooleanFalse
+    | value=ID #IdentifierExpr
+    | 'this' #ThisExpr
+    | op='!' expr #UnaryExpr
+    | 'new' 'int' '[' expr ']' #NewIntArrayExpr
+    | 'new' value=ID '(' ')' #NewObjectExpr
+    | value=ID op=('++' | '--') #PostfixExpr
+    | left=expr '[' right=expr ']' #ArrayAccessExpr
+    | left=expr '.' 'length' #ArrayLengthExpr
+    | left=expr '.' method=ID '(' ( expr ( ',' expr )* )? ')' #MethodCallExpr
+    | left=expr op=('*' | '/') right=expr #MultiplicativeExpr
+    | left=expr op=('+' | '-') right=expr #AdditiveExpr
+    | left=expr op=('<' | '>') right=expr #RelationalExpr
+    | left=expr op=('<=' | '>=' | '==' | '!=') right=expr #EqualityExpr
+    | left=expr op='&&' right=expr #LogicalAndExpr
+    | left=expr op='||' right=expr #LogicalOrExpr
+    | left=expr op=('+=' | '-=' | '*=' | '/=') right=expr #AssignmentExpr
+    ;
+
 
 
