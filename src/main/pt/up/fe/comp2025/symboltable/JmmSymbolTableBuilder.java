@@ -8,11 +8,9 @@ import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.specs.util.SpecsCheck;
+import pt.up.fe.specs.util.exceptions.NotImplementedException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static pt.up.fe.comp2025.ast.Kind.*;
 
@@ -42,12 +40,20 @@ public class JmmSymbolTableBuilder {
         var classDecl = root.getChild(0);
         SpecsCheck.checkArgument(Kind.CLASS_DECL.check(classDecl), () -> "Expected a class declaration: " + classDecl);
         String className = classDecl.get("name");
+
+        String extendedClass = "";
+        if (classDecl.hasAttribute("extendedClass")){
+            extendedClass = classDecl.get("extendedClass");
+        }
+
+        var fields = getLocalsList(classDecl);
         var methods = buildMethods(classDecl);
         var returnTypes = buildReturnTypes(classDecl);
         var params = buildParams(classDecl);
         var locals = buildLocals(classDecl);
+        var imports = buildImports(root);
 
-        return new JmmSymbolTable(className, methods, returnTypes, params, locals);
+        return new JmmSymbolTable(className, extendedClass, fields, methods, returnTypes, params, locals,imports);
     }
 
 
@@ -107,6 +113,37 @@ public class JmmSymbolTableBuilder {
 
         return methods;
     }
+
+
+    private static List<String> buildImports(JmmNode root) {
+
+        List<String> imports = new ArrayList<>();
+
+        List<JmmNode> rootChildren = root.getChildren();
+        for (JmmNode child : rootChildren){
+            if(Objects.equals(child.getKind(), "ImportStmt")) {
+                imports.add(child.get("ID"));
+            }
+        }
+
+        return imports;
+    }
+
+
+    private static List<Symbol> getLocalsList(JmmNode methodDecl) {
+
+
+        List<Symbol> Locals = new ArrayList<>();
+        methodDecl.getChildren(VAR_DECL).stream().forEach(varDecl -> {
+            boolean isArray = Objects.equals(varDecl.getChild(0).getKind(), "VarArray");
+            Type type = new Type(varDecl.getChild(0).get("name"),isArray);
+            String name = varDecl.get("name");
+            Locals.add(new Symbol(type,name));
+        }  );
+
+        return Locals;
+    }
+
 
 
 }

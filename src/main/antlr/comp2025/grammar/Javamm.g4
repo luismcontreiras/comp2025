@@ -17,7 +17,7 @@ program
     ;
 
 importDecl
-    : 'import' ID ('.' ID)* ';'
+    : 'import' ID ('.' ID)* ';' #ImportStmt
     ;
 
 classDecl
@@ -34,12 +34,9 @@ methodDecl
     ;
 
 type
-    : 'int' '[' ']'
-    | 'int' '...'
-    | 'String'
-    | 'boolean'
-    | 'int'
-    | ID
+    : value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | ID ) #Var
+    | value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | ID ) '[' ']' #VarArray
+    | value='int' '...'  #VarArgs
     ;
 
 stmt
@@ -50,6 +47,7 @@ stmt
 otherStmt
     : '{' ( stmt )* '}'
     | 'while' '(' expr ')' stmt
+    | 'for' '(' stmt expr ';' expr ')' stmt
     | expr ';'
     | ID '=' expr ';'
     | ID '[' expr ']' '=' expr ';'
@@ -77,16 +75,16 @@ expr
     | 'new' 'int' '[' expr ']' #NewIntArrayExpr
     | 'new' value=ID '(' ')' #NewObjectExpr
     | value=ID op=('++' | '--') #PostfixExpr
-    | left=expr '[' right=expr ']' #ArrayAccessExpr
-    | left=expr '.' 'length' #ArrayLengthExpr
-    | left=expr '.' method=ID '(' ( expr ( ',' expr )* )? ')' #MethodCallExpr
-    | left=expr op=('*' | '/') right=expr #MultiplicativeExpr
-    | left=expr op=('+' | '-') right=expr #AdditiveExpr
-    | left=expr op=('<' | '>') right=expr #RelationalExpr
-    | left=expr op=('<=' | '>=' | '==' | '!=') right=expr #EqualityExpr
-    | left=expr op='&&' right=expr #LogicalAndExpr
-    | left=expr op='||' right=expr #LogicalOrExpr
-    | left=expr op=('+=' | '-=' | '*=' | '/=') right=expr #AssignmentExpr
+    | expr '[' expr ']' #ArrayAccessExpr
+    | expr '.' 'length' #ArrayLengthExpr
+    | expr '.' method=ID '(' ( expr ( ',' expr )* )? ')' #MethodCallExpr
+    | expr op=('*' | '/') expr #MultiplicativeExpr
+    | expr op=('+' | '-') expr #AdditiveExpr
+    | expr op=('<' | '>') expr #RelationalExpr
+    | expr op=('<=' | '>=' | '==' | '!=') expr #EqualityExpr
+    | expr op='&&' expr #LogicalAndExpr
+    | expr op='||' expr #LogicalOrExpr
+    | expr op=('+=' | '-=' | '*=' | '/=') expr #AssignmentExpr
     ;
 
 
