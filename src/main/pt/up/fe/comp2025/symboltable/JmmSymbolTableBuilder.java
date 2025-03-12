@@ -61,31 +61,36 @@ public class JmmSymbolTableBuilder {
         return new JmmSymbolTable(className, extendedClass, fields, methods, returnTypes, params, locals, imports);
     }
 
+    private boolean hasValidReturnType(JmmNode method) {
+        return method.getChildren().stream()
+                .anyMatch(node -> node.getKind().equals("Var")
+                        || node.getKind().equals("VarArray")
+                        || node.getKind().equals("VarArgs"));
+    }
+
+    private String extractMethodName(JmmNode method) {
+        return hasValidReturnType(method) ? method.get("name") : "main";
+    }
+
     private Map<String, Type> buildReturnTypes(JmmNode classDecl) {
         Map<String, Type> returnTypes = new HashMap<>();
 
-        // Iterate over each method declaration in the class
-        for (var method : classDecl.getChildren(METHOD_DECL)) {
-            String methodName = method.get("name");
+        for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
+            String methodName = extractMethodName(method);
 
-            // If the method is the main method, its return type is void
-            if (Objects.equals(methodName, "main")) {
-                returnTypes.put(methodName, new Type("void", false));
-            } else {
-                // The first child of a non-main method is the return type node.
-                JmmNode typeNode = method.getChild(0);
+            if (hasValidReturnType(method)) {
+                JmmNode returnTypeNode = method.getChildren().stream()
+                        .filter(node -> node.getKind().equals("Var")
+                                || node.getKind().equals("VarArray")
+                                || node.getKind().equals("VarArgs"))
+                        .findFirst()
+                        .orElseThrow(() -> new NotImplementedException("Expected a valid return type for method: " + methodName));
 
-                // The grammar defines the type using the "value" attribute:
-                //   - For #Var, it is a simple type.
-                //   - For #VarArray, it represents an array type.
-                //   - For #VarArgs, it is treated similarly to an array.
-                String typeName = typeNode.get("value");
-
-                // Check the node's kind to determine if it is an array
-                boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-
-                // Store the method's return type in the map
+                String typeName = returnTypeNode.get("value");
+                boolean isArray = returnTypeNode.getKind().equals("VarArray") || returnTypeNode.getKind().equals("VarArgs");
                 returnTypes.put(methodName, new Type(typeName, isArray));
+            } else {
+                returnTypes.put(methodName, new Type("void", false));
             }
         }
 
@@ -95,23 +100,15 @@ public class JmmSymbolTableBuilder {
 
     private Map<String, List<Symbol>> buildParams(JmmNode classDecl) {
         Map<String, List<Symbol>> paramsMap = new HashMap<>();
-
-        // Iterate over every method declaration in the class
         for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
-            String methodName = method.get("name");
+            String methodName = extractMethodName(method);
             List<Symbol> paramsList = new ArrayList<>();
 
-            // Assume that the AST builder creates a node labeled "PARAM" for each parameter.
             for (JmmNode param : method.getChildren("ParamExp")) {
-                // The first child of the parameter node is the type node
                 JmmNode typeNode = param.getChild(0);
-                // Retrieve the type name from the attribute "value" (set by the grammar)
                 String typeName = typeNode.get("value");
-                // Determine if the parameter is an array type by checking the node kind
                 boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-                // Retrieve the parameter name from the attribute "name" of the parameter node
                 String paramName = param.get("name");
-                // Create a new Symbol for the parameter and add it to the list
                 paramsList.add(new Symbol(new Type(typeName, isArray), paramName));
             }
             paramsMap.put(methodName, paramsList);
@@ -120,45 +117,41 @@ public class JmmSymbolTableBuilder {
     }
 
     private Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
+        Map<String, List<Symbol>> localsMap = new HashMap<>();
+        for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
+            String methodName = extractMethodName(method);
+            List<Symbol> localsList = new ArrayList<>();
 
-        var map = new HashMap<String, List<Symbol>>();
-
-        for (var method : classDecl.getChildren(METHOD_DECL)) {
-            var name = method.get("name");
-            var locals = method.getChildren(VAR_DECL).stream()
-                    // TODO: When you support new types, this code has to be updated
-                    .map(varDecl -> new Symbol(TypeUtils.newIntType(), varDecl.get("name")))
-                    .toList();
-
-
-            map.put(name, locals);
+            for (JmmNode varDecl : method.getChildren(VAR_DECL)) {
+                if (varDecl.getChildren().isEmpty()) {
+                    continue;
+                }
+                JmmNode typeNode = varDecl.getChild(0);
+                boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
+                String typeName = typeNode.get("value");
+                String varName = varDecl.get("name");
+                localsList.add(new Symbol(new Type(typeName, isArray), varName));
+            }
+            localsMap.put(methodName, localsList);
         }
-
-        return map;
+        return localsMap;
     }
 
     private List<String> buildMethods(JmmNode classDecl) {
-
-        var methods = classDecl.getChildren(METHOD_DECL).stream()
-                .map(method -> method.get("name"))
-                .toList();
-
+        List<String> methods = new ArrayList<>();
+        for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
+            methods.add(extractMethodName(method));
+        }
         return methods;
     }
 
 
     private static List<String> buildImports(JmmNode root) {
         List<String> imports = new ArrayList<>();
-
-        // Iterate over all children of the root node
         for (JmmNode child : root.getChildren()) {
-            // Check if the node is an import statement (as defined by our grammar)
             if ("ImportStmt".equals(child.getKind())) {
-                // Build the full import string using the first ID and any additional parts
                 StringBuilder importBuilder = new StringBuilder();
-                // The first part is stored as an attribute "ID" in the ImportStmt node
                 importBuilder.append(child.get("ID"));
-                // Any additional parts (after a dot) are stored as children nodes
                 for (JmmNode subNode : child.getChildren()) {
                     importBuilder.append(".").append(subNode.get("ID"));
                 }
@@ -172,21 +165,11 @@ public class JmmSymbolTableBuilder {
     private static List<Symbol> getLocalsList(JmmNode methodDecl) {
         List<Symbol> locals = new ArrayList<>();
 
-        // Iterate over all varDecl nodes within the method declaration
         for (JmmNode varDecl : methodDecl.getChildren(VAR_DECL)) {
-            // Get the type node (first child of the varDecl)
             JmmNode typeNode = varDecl.getChild(0);
-
-            // Check if the type is an array, either VarArray or VarArgs
             boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-
-            // Retrieve the type name from the "value" attribute (not "name")
             String typeName = typeNode.get("value");
-
-            // Retrieve the variable name from the varDecl node (assumed to be set in attribute "name")
             String varName = varDecl.get("name");
-
-            // Create a new Symbol with the type and variable name, and add it to the list
             locals.add(new Symbol(new Type(typeName, isArray), varName));
         }
 

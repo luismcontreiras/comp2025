@@ -57,13 +57,13 @@ public class JmmSymbolTable extends AJmmSymbolTable {
 
     @Override
     public List<Symbol> getFields() {
-        return fields;
+        return Collections.unmodifiableList(fields);
     }
 
 
     @Override
     public List<String> getMethods() {
-        return methods;
+        return Collections.unmodifiableList(methods);
     }
 
 
