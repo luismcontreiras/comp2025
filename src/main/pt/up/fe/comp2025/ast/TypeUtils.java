@@ -52,23 +52,23 @@ public class TypeUtils {
             case "BooleanTrue":
             case "BooleanFalse":
                 return new Type("boolean", false);
-            case "IdentifierExpr": {
+            case "VarRefExpr": {
                 String id = expr.get("value");
-                // First, check for a local variable in the current method.
+                // Check local variables.
                 List<Symbol> locals = table.getLocalVariables(currentMethod);
                 for (Symbol symbol : locals) {
                     if (symbol.getName().equals(id)) {
                         return symbol.getType();
                     }
                 }
-                // Next, check among the method parameters.
+                // Check method parameters.
                 List<Symbol> params = table.getParameters(currentMethod);
                 for (Symbol symbol : params) {
                     if (symbol.getName().equals(id)) {
                         return symbol.getType();
                     }
                 }
-                // Finally, check the fields.
+                // Check class fields.
                 for (Symbol symbol : table.getFields()) {
                     if (symbol.getName().equals(id)) {
                         return symbol.getType();
@@ -81,7 +81,7 @@ public class TypeUtils {
             case "ParenthesizedExpr":
                 return getExprType(expr.getChild(0), currentMethod);
             case "UnaryExpr": {
-                // Here we assume the only supported unary operator is '!'
+                // Assume the only supported unary operator is '!'
                 Type operandType = getExprType(expr.getChild(0), currentMethod);
                 if (!"boolean".equals(operandType.getName())) {
                     throw new RuntimeException("Unary operator '!' applied to non-boolean type");
@@ -96,7 +96,7 @@ public class TypeUtils {
             }
             case "PostfixExpr": {
                 String id = expr.get("value");
-                // Lookup similar to IdentifierExpr.
+                // Similar lookup as for VarRefExpr.
                 List<Symbol> locals = table.getLocalVariables(currentMethod);
                 for (Symbol symbol : locals) {
                     if (symbol.getName().equals(id)) {
@@ -141,23 +141,28 @@ public class TypeUtils {
                 }
                 return returnType;
             }
-            case "MultiplicativeExpr":
-            case "AdditiveExpr":
-                // Arithmetic operations yield int.
-                return new Type("int", false);
-            case "RelationalExpr":
-            case "EqualityExpr":
-            case "LogicalAndExpr":
-            case "LogicalOrExpr":
-                return new Type("boolean", false);
-            case "AssignmentExpr":
-                // The assignment expression returns the type of the left-hand side.
-                return getExprType(expr.getChild(0), currentMethod);
+            case "BinaryExpr": {
+                // All binary operations are unified under BinaryExpr.
+                String op = expr.get("op");
+                if (op.equals("*") || op.equals("/") || op.equals("+") || op.equals("-")) {
+                    return new Type("int", false);
+                } else if (op.equals("<") || op.equals(">") || op.equals("<=") || op.equals(">=")
+                        || op.equals("==") || op.equals("!=")) {
+                    return new Type("boolean", false);
+                } else if (op.equals("&&") || op.equals("||")) {
+                    return new Type("boolean", false);
+                } else if (op.equals("+=") || op.equals("-=") || op.equals("*=") || op.equals("/=")) {
+                    // For assignment operators, return the type of the left-hand side.
+                    return getExprType(expr.getChild(0), currentMethod);
+                } else {
+                    throw new RuntimeException("Unsupported operator in BinaryExpr: " + op);
+                }
+            }
             case "ArrayLiteralExpr": {
                 if (expr.getChildren().isEmpty()) {
                     return new Type("int", true);
                 } else {
-                    // Infer the element type from the first expression and mark it as an array.
+                    // Infer element type from the first expression and mark as an array.
                     Type elementType = getExprType(expr.getChild(0), currentMethod);
                     return new Type(elementType.getName(), true);
                 }
