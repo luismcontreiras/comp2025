@@ -51,7 +51,7 @@ public class JmmSymbolTableBuilder {
             extendedClass = classDecl.get("extendedClass");
         }
 
-        var fields = getLocalsList(classDecl);
+        var fields = getFieldsList(classDecl);
         var methods = buildMethods(classDecl);
         var returnTypes = buildReturnTypes(classDecl);
         var params = buildParams(classDecl);
@@ -86,9 +86,8 @@ public class JmmSymbolTableBuilder {
                         .findFirst()
                         .orElseThrow(() -> new NotImplementedException("Expected a valid return type for method: " + methodName));
 
-                String typeName = returnTypeNode.get("value");
-                boolean isArray = returnTypeNode.getKind().equals("VarArray") || returnTypeNode.getKind().equals("VarArgs");
-                returnTypes.put(methodName, new Type(typeName, isArray));
+                // Use TypeUtils.convertType to get the method's return type.
+                returnTypes.put(methodName, TypeUtils.convertType(returnTypeNode));
             } else {
                 returnTypes.put(methodName, new Type("void", false));
             }
@@ -96,7 +95,6 @@ public class JmmSymbolTableBuilder {
 
         return returnTypes;
     }
-
 
     private Map<String, List<Symbol>> buildParams(JmmNode classDecl) {
         Map<String, List<Symbol>> paramsMap = new HashMap<>();
@@ -106,10 +104,7 @@ public class JmmSymbolTableBuilder {
 
             for (JmmNode param : method.getChildren("ParamExp")) {
                 JmmNode typeNode = param.getChild(0);
-                String typeName = typeNode.get("value");
-                boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-                String paramName = param.get("name");
-                paramsList.add(new Symbol(new Type(typeName, isArray), paramName));
+                paramsList.add(new Symbol(TypeUtils.convertType(typeNode), param.get("name")));
             }
             paramsMap.put(methodName, paramsList);
         }
@@ -127,10 +122,7 @@ public class JmmSymbolTableBuilder {
                     continue;
                 }
                 JmmNode typeNode = varDecl.getChild(0);
-                boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-                String typeName = typeNode.get("value");
-                String varName = varDecl.get("name");
-                localsList.add(new Symbol(new Type(typeName, isArray), varName));
+                localsList.add(new Symbol(TypeUtils.convertType(typeNode), varDecl.get("name")));
             }
             localsMap.put(methodName, localsList);
         }
@@ -144,7 +136,6 @@ public class JmmSymbolTableBuilder {
         }
         return methods;
     }
-
 
     private static List<String> buildImports(JmmNode root) {
         List<String> imports = new ArrayList<>();
@@ -161,21 +152,14 @@ public class JmmSymbolTableBuilder {
         return imports;
     }
 
+    private static List<Symbol> getFieldsList(JmmNode classDecl) {
+        List<Symbol> fields = new ArrayList<>();
 
-    private static List<Symbol> getLocalsList(JmmNode methodDecl) {
-        List<Symbol> locals = new ArrayList<>();
-
-        for (JmmNode varDecl : methodDecl.getChildren(VAR_DECL)) {
+        for (JmmNode varDecl : classDecl.getChildren(VAR_DECL)) {
             JmmNode typeNode = varDecl.getChild(0);
-            boolean isArray = typeNode.getKind().equals("VarArray") || typeNode.getKind().equals("VarArgs");
-            String typeName = typeNode.get("value");
-            String varName = varDecl.get("name");
-            locals.add(new Symbol(new Type(typeName, isArray), varName));
+            fields.add(new Symbol(TypeUtils.convertType(typeNode), varDecl.get("name")));
         }
 
-        return locals;
+        return fields;
     }
-
-
-
 }

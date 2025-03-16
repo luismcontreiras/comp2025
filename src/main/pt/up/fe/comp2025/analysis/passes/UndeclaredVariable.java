@@ -9,9 +9,9 @@ import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.specs.util.SpecsCheck;
 
 /**
- * Checks if the type of the expression in a return statement is compatible with the method return type.
- *
- * @author JBispo
+ * Checks if an identifier used in the code is declared as either a local variable,
+ * a method parameter, a class field, or corresponds to an imported class.
+ * If not, an error report is generated.
  */
 public class UndeclaredVariable extends AnalysisVisitor {
 
@@ -19,47 +19,60 @@ public class UndeclaredVariable extends AnalysisVisitor {
 
     @Override
     public void buildVisitor() {
+        // Record current method from METHOD_DECL nodes.
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
+        // Visit variable reference expressions.
         addVisit(Kind.VAR_REF_EXPR, this::visitVarRefExpr);
     }
 
-    private Void visitMethodDecl(JmmNode method, SymbolTable table) {
-        currentMethod = method.get("name");
+    private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
+        // Set the current method context using the "name" attribute.
+        currentMethod = methodDecl.get("name");
         return null;
     }
 
     private Void visitVarRefExpr(JmmNode varRefExpr, SymbolTable table) {
         SpecsCheck.checkNotNull(currentMethod, () -> "Expected current method to be set");
 
-        // Check if exists a parameter or variable declaration with the same name as the variable reference
-        var varRefName = varRefExpr.get("name");
+        // Get the identifier from the "value" attribute (per your grammar).
+        String varRefName = varRefExpr.get("value");
 
-
-        // Var is a parameter, return
+        // Check if it is declared as a method parameter.
         if (table.getParameters(currentMethod).stream()
                 .anyMatch(param -> param.getName().equals(varRefName))) {
             return null;
         }
 
-        // Var is a declared variable, return
+        // Check if it is declared as a local variable.
         if (table.getLocalVariables(currentMethod).stream()
-                .anyMatch(varDecl -> varDecl.getName().equals(varRefName))) {
+                .anyMatch(local -> local.getName().equals(varRefName))) {
             return null;
         }
 
+        // Check if it is declared as a class field.
+        if (table.getFields().stream()
+                .anyMatch(field -> field.getName().equals(varRefName))) {
+            return null;
+        }
 
-        // Create error report
-        var message = String.format("Variable '%s' does not exist.", varRefName);
-        addReport(Report.newError(
-                Stage.SEMANTIC,
+        // Check if it matches an imported class.
+        if (table.getImports().stream().anyMatch(importStr -> {
+            // Extract the simple name (after the last dot).
+            int lastDot = importStr.lastIndexOf('.');
+            String simpleName = (lastDot >= 0) ? importStr.substring(lastDot + 1) : importStr;
+            return simpleName.equals(varRefName);
+        })) {
+            return null;
+        }
+
+        // If not found anywhere, report an error.
+        String message = String.format("Variable '%s' does not exist.", varRefName);
+        addReport(Report.newError(Stage.SEMANTIC,
                 varRefExpr.getLine(),
                 varRefExpr.getColumn(),
                 message,
-                null)
-        );
+                null));
 
         return null;
     }
-
-
 }

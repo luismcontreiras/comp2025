@@ -49,12 +49,12 @@ stmt
     ;
 
 otherStmt
-    : '{' ( stmt )* '}'
-    | 'while' '(' expr ')' stmt
-    | 'for' '(' stmt expr ';' expr ')' stmt
-    | expr ';'
-    | ID '=' expr ';'
-    | ID '[' expr ']' '=' expr ';'
+    : '{' ( stmt )* '}' #BlockStmt
+    | 'while' '(' expr ')' stmt #WhileStmt
+    | 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
+    | expr ';' #ExprStmt
+    | ID '=' expr ';' #AssignStmt
+    | ID '[' expr ']' '=' expr ';' #AssignStmt
     ;
 
 withElse
@@ -73,7 +73,7 @@ expr
     | value=INT #IntegerLiteral
     | value='true' #BooleanTrue
     | value='false' #BooleanFalse
-    | value=ID #IdentifierExpr
+    | value=ID #VarRefExpr
     | 'this' #ThisExpr
     | op='!' expr #UnaryExpr
     | 'new' 'int' '[' expr ']' #NewIntArrayExpr
@@ -82,13 +82,13 @@ expr
     | expr '[' expr ']' #ArrayAccessExpr
     | expr '.' 'length' #ArrayLengthExpr
     | expr '.' method=ID '(' ( expr ( ',' expr )* )? ')' #MethodCallExpr
-    | expr op=('*' | '/') expr #MultiplicativeExpr
-    | expr op=('+' | '-') expr #AdditiveExpr
-    | expr op=('<' | '>') expr #RelationalExpr
-    | expr op=('<=' | '>=' | '==' | '!=') expr #EqualityExpr
-    | expr op='&&' expr #LogicalAndExpr
-    | expr op='||' expr #LogicalOrExpr
-    | expr op=('+=' | '-=' | '*=' | '/=') expr #AssignmentExpr
+    | expr op=('*' | '/') expr #BinaryExpr
+    | expr op=('+' | '-') expr #BinaryExpr
+    | expr op=('<' | '>') expr #BinaryExpr
+    | expr op=('<=' | '>=' | '==' | '!=') expr #BinaryExpr
+    | expr op='&&' expr #BinaryExpr
+    | expr op='||' expr #BinaryExpr
+    | expr op=('+=' | '-=' | '*=' | '/=') expr #BinaryExpr
     ;
 
 
