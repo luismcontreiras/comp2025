@@ -8,14 +8,13 @@ import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
-import pt.up.fe.specs.util.SpecsCheck;
 
 /**
  * Checks binary arithmetic operations for type compatibility.
  * In particular, it ensures that arithmetic operators (such as '*', '/', '+' and '-')
  * are applied to operands of type int. If not, a semantic error is reported.
  */
-public class BinaryOperationTypeCheck extends AnalysisVisitor {
+public class BinaryOperationCheck extends AnalysisVisitor {
 
     private String currentMethod;
 
