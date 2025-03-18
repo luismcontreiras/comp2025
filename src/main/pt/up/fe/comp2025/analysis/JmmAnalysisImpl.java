@@ -12,6 +12,8 @@ import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.analysis.passes.*;
 import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.symboltable.JmmSymbolTableBuilder;
+import pt.up.fe.comp2025.analysis.passes.MethodVerificationVisitor;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,12 +31,14 @@ public class JmmAnalysisImpl implements JmmAnalysis {
      * @return
      */
     private List<AnalysisVisitor> buildPasses(SymbolTable table) {
-        return List.of(
-                new UndeclaredVariable(),
-                new BinaryOperationCheck(),
-                new ArrayArithmeticCheck(),
-                new ArrayAccessCombinedCheck()
-        );
+        var passes = new ArrayList<AnalysisVisitor>();
+        passes.add(new UndeclaredVariable());
+        passes.add(new BinaryOperationCheck());
+        passes.add(new ArrayArithmeticCheck());
+        passes.add(new ArrayAccessCombinedCheck());
+        passes.add(new MethodVerificationVisitor());
+
+        return passes;
     }
 
     @Override
