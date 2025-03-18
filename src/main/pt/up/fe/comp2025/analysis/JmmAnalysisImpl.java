@@ -31,14 +31,15 @@ public class JmmAnalysisImpl implements JmmAnalysis {
      * @return
      */
     private List<AnalysisVisitor> buildPasses(SymbolTable table) {
-        var passes = new ArrayList<AnalysisVisitor>();
-        passes.add(new UndeclaredVariable());
-        passes.add(new BinaryOperationCheck());
-        passes.add(new ArrayArithmeticCheck());
-        passes.add(new ArrayAccessCombinedCheck());
-        passes.add(new MethodVerificationVisitor());
+        return List.of(
+                new UndeclaredVariable(),
+                new BinaryOperationCheck(),
+                new ArrayArithmeticCheck(),
+                new ArrayAccessCombinedCheck(),
+                new MethodVerificationVisitor()
+        );
 
-        return passes;
+
     }
 
     @Override
