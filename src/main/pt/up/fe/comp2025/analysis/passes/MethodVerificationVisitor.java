@@ -6,6 +6,7 @@ import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
+import pt.up.fe.comp2025.ast.TypeUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,14 +29,23 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
     private Void checkMethodCall(JmmNode callNode, SymbolTable table) {
         String methodName = callNode.get("method");
 
-        // Check if the method exists in the current class; if not and no superclass, report error.
+        // Get caller type
+        Type callerType = new TypeUtils(table).getExprType(callNode.getChild(0), currentMethod);
+
+        // If caller is not current class, assume import or superclass and skip verification
+        if (!callerType.getName().equals(table.getClassName())
+                && !callerType.getName().equals("this")
+                && !callerType.getName().equals("unknown")) {
+            return null;
+        }
+
+        // If the method does not exist locally
         if (!table.getMethods().contains(methodName)) {
             if (table.getSuper() == null || table.getSuper().isEmpty()) {
                 addReport(newError(callNode, "Method '" + methodName + "' not declared in class and no superclass to look up."));
                 return null;
             } else {
-                // If there is a superclass, assume the method exists there.
-                return null;
+                return null; // Assume exists in superclass
             }
         }
 
@@ -45,11 +55,9 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
 
         List<Symbol> methodParams = table.getParameters(methodName);
 
-        // Check if the method has varargs (represented as int[] in the last parameter).
         boolean hasVarargs = !methodParams.isEmpty() && methodParams.get(methodParams.size() - 1).getType().getName().equals("int") && methodParams.get(methodParams.size() - 1).getType().isArray();
 
         if (hasVarargs) {
-            // For varargs, ensure at least fixed parameters are provided.
             if (args.size() < methodParams.size() - 1) {
                 addReport(newError(callNode, "Method call to '" + methodName + "' has fewer arguments than required."));
                 return null;
@@ -64,7 +72,6 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
                 }
             }
         } else {
-            // If not varargs, check for exact argument count and type compatibility.
             if (args.size() != methodParams.size()) {
                 addReport(newError(callNode, "Argument count mismatch in call to method '" + methodName + "'. Expected: " + methodParams.size() + ", got: " + args.size()));
                 return null;
