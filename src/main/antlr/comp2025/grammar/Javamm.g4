@@ -44,11 +44,11 @@ type
     ;
 
 stmt
-    : withElse #IfStmt
-    | noElse #IfStmt
+    : withElse
+    | noElse
     ;
 
-otherStmt
+other
     : '{' ( stmt )* '}' #BlockStmt
     | 'while' '(' expr ')' stmt #WhileStmt
     | 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
@@ -58,13 +58,13 @@ otherStmt
     ;
 
 withElse
-    : 'if' '(' expr ')' withElse 'else' withElse
-    | otherStmt
+    : 'if' '(' expr ')' withElse 'else' withElse #WithElseStmt
+    | other #OtherStmt
     ;
 
 noElse
-    : 'if' '(' expr ')' stmt
-    | 'if' '(' expr ')' withElse 'else' noElse
+    : 'if' '(' expr ')' stmt #NoElseStmt
+    | 'if' '(' expr ')' withElse 'else' noElse #NoElseStmt
     ;
 
 expr
