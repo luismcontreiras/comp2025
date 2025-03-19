@@ -2,52 +2,54 @@ package pt.up.fe.comp2025.ast;
 
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.specs.util.SpecsStrings;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * Enum that mirrors the nodes that are supported by the AST.
+ * Enum that mirrors the nodes supported by the AST.
  *
- * This enum allows you to handle nodes in a safer and more flexible way than using strings.
- * The constants have been adapted to match the alternative labels and rule names in the Javamm grammar.
+ * The constants have been adapted to match the alternative labels and rule names in your updated Javamm grammar.
  */
 public enum Kind {
     // Program structure
     PROGRAM,
-    IMPORT_STMT,      // corresponds to importDecl alternative label: #ImportStmt
+    IMPORT_STMT,      // from #ImportStmt in importDecl
     CLASS_DECL,
     VAR_DECL,
     METHOD_DECL,
-    PARAM,            // corresponds to param alternative label: #ParamExp
+    PARAM,            // from #ParamExp in param
 
     // Type nodes (from the type rule alternatives)
-    TYPE,             // corresponds to the alternative label: #Var
-    VAR_ARRAY,        // corresponds to the alternative label: #VarArray
-    VAR_ARGS,         // corresponds to the alternative label: #VarArgs
+    TYPE,             // from #Var in type
+    VAR_ARRAY,        // from #VarArray in type
+    VAR_ARGS,         // from #VarArgs in type
 
     // Statement nodes
     STMT,
-    ASSIGN_STMT,      // corresponds to assignment statements (#AssignStmt)
-    RETURN_STMT,      // if return statements are represented as a distinct node
+    ASSIGN_STMT,      // for assignment statements (#AssignStmt)
+    RETURN_STMT,      // for return statements (if distinct)
+    WITH_ELSE_STMT,   // from withElse: 'if' '(' expr ')' withElse 'else' withElse #WithElseStmt
+    OTHER_STMT,       // from withElse: other #OtherStmt
+    NO_ELSE_STMT,     // from noElse alternatives labeled #NoElseStmt
+    WHILE_STMT,       // for while statements, e.g., 'while' '(' expr ')' stmt (#WhileStmt)
 
-    // Expression nodes (from the expr rule alternatives)
-    PARENTHESIZED_EXPR,   // corresponds to #ParenthesizedExpr
-    ARRAY_LITERAL_EXPR,   // corresponds to #ArrayLiteralExpr
-    INTEGER_LITERAL,      // corresponds to #IntegerLiteral
-    BOOLEAN_TRUE,         // corresponds to #BooleanTrue
-    BOOLEAN_FALSE,        // corresponds to #BooleanFalse
-    VAR_REF_EXPR,         // corresponds to #VarRefExpr
-    THIS_EXPR,            // corresponds to #ThisExpr
-    UNARY_EXPR,           // corresponds to #UnaryExpr
-    NEW_INT_ARRAY_EXPR,   // corresponds to #NewIntArrayExpr
-    NEW_OBJECT_EXPR,      // corresponds to #NewObjectExpr
-    POSTFIX_EXPR,         // corresponds to #PostfixExpr
-    ARRAY_ACCESS_EXPR,    // corresponds to #ArrayAccessExpr
-    ARRAY_LENGTH_EXPR,    // corresponds to #ArrayLengthExpr
-    METHOD_CALL_EXPR,     // corresponds to #MethodCallExpr
-    BINARY_EXPR;          // corresponds to all binary operations unified as #BinaryExpr
+    // Expression nodes
+    PARENTHESIZED_EXPR,   // from #ParenthesizedExpr
+    ARRAY_LITERAL_EXPR,   // from #ArrayLiteralExpr
+    INTEGER_LITERAL,      // from #IntegerLiteral
+    BOOLEAN_TRUE,         // from #BooleanTrue
+    BOOLEAN_FALSE,        // from #BooleanFalse
+    VAR_REF_EXPR,         // from #VarRefExpr
+    THIS_EXPR,            // from #ThisExpr
+    UNARY_EXPR,           // from #UnaryExpr
+    NEW_INT_ARRAY_EXPR,   // from #NewIntArrayExpr
+    NEW_OBJECT_EXPR,      // from #NewObjectExpr
+    POSTFIX_EXPR,         // from #PostfixExpr
+    ARRAY_ACCESS_EXPR,    // from #ArrayAccessExpr
+    ARRAY_LENGTH_EXPR,    // from #ArrayLengthExpr
+    METHOD_CALL_EXPR,     // from #MethodCallExpr
+    BINARY_EXPR;          // from all binary operations unified as #BinaryExpr
 
     private final String name;
 
@@ -108,7 +110,7 @@ public enum Kind {
     }
 
     /**
-     * Performs a check on all kinds to test and returns false if none matches.
+     * Checks if the node matches any of the given kinds.
      *
      * @param node the AST node to check.
      * @param kindsToTest the kinds to test against.
@@ -124,7 +126,7 @@ public enum Kind {
     }
 
     /**
-     * Performs a check on all kinds and throws if none matches. Otherwise, does nothing.
+     * Checks and throws if the node does not match any of the given kinds.
      *
      * @param node the AST node to check.
      * @param kindsToTest the kinds to test against.

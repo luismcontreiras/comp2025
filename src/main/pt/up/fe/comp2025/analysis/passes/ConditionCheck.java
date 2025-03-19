@@ -6,6 +6,7 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
+import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
 
 public class ConditionCheck extends AnalysisVisitor {
@@ -14,8 +15,9 @@ public class ConditionCheck extends AnalysisVisitor {
     public void buildVisitor() {
         // Register visit rules for if and while nodes.
         // Adjust these names if your AST uses different kinds.
-        //addVisit("IfStmt", this::visitIfStmt);
-        addVisit("WhileStmt", this::visitWhileStmt);
+        addVisit(Kind.WITH_ELSE_STMT, this::visitIfStmt);
+        addVisit(Kind.NO_ELSE_STMT, this::visitIfStmt);
+        addVisit(Kind.WHILE_STMT, this::visitWhileStmt);
     }
 
 
@@ -23,7 +25,6 @@ public class ConditionCheck extends AnalysisVisitor {
      * Checks that the condition expression of an if-statement evaluates to a boolean.
      * Assumes that the first child of the if node is the condition.
      */
-    /*
     private Void visitIfStmt(JmmNode node, SymbolTable table) {
         if (node.getNumChildren() < 3) {
             // Typically, an if-statement has at least three children: condition, then, else.
@@ -48,7 +49,6 @@ public class ConditionCheck extends AnalysisVisitor {
         }
         return null;
     }
-    */
 
     /**
      * Checks that the condition expression of a while-statement evaluates to a boolean.
