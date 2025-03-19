@@ -36,7 +36,9 @@ public class JmmAnalysisImpl implements JmmAnalysis {
                 new BinaryOperationCheck(),
                 new ArrayArithmeticCheck(),
                 new ArrayAccessCombinedCheck(),
-                new MethodVerificationVisitor()
+                new MethodVerificationVisitor(),
+                new AssignmentTypeCheck(),
+                new ConditionCheck()
         );
 
 

@@ -44,8 +44,8 @@ type
     ;
 
 stmt
-    : withElse
-    | noElse
+    : withElse #IfStmt
+    | noElse #IfStmt
     ;
 
 otherStmt
@@ -53,8 +53,8 @@ otherStmt
     | 'while' '(' expr ')' stmt #WhileStmt
     | 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
     | expr ';' #ExprStmt
-    | ID '=' expr ';' #AssignStmt
-    | ID '[' expr ']' '=' expr ';' #AssignStmt
+    | name=ID '=' expr ';' #AssignStmt
+    | name=ID '[' expr ']' '=' expr ';' #AssignStmt
     ;
 
 withElse

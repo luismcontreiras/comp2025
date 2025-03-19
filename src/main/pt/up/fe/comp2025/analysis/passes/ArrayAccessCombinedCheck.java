@@ -12,8 +12,11 @@ import pt.up.fe.comp2025.ast.TypeUtils;
 /**
  * Combined check for array access expressions.
  * It verifies that:
- *   1. The expression being accessed is an array.
+ *   1. The base expression is an array.
  *   2. The index expression is of type int.
+ *
+ * This pass first checks if the array access node is complete (i.e. has at least 2 children)
+ * to avoid false errors on incomplete assignment expressions.
  */
 public class ArrayAccessCombinedCheck extends AnalysisVisitor {
 
@@ -21,7 +24,7 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
 
     @Override
     public void buildVisitor() {
-        // Record the current method (for symbol lookup).
+        // Record the current method for symbol lookup.
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
         // Visit array access expressions.
         addVisit(Kind.ARRAY_ACCESS_EXPR, this::visitArrayAccessExpr);
@@ -34,13 +37,14 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
     }
 
     private Void visitArrayAccessExpr(JmmNode arrayAccessExpr, SymbolTable table) {
+        // If the node is incomplete (e.g. missing the right-hand side index), skip checks.
+        if (arrayAccessExpr.getNumChildren() < 2) {
+            return null;
+        }
+
         TypeUtils typeUtils = new TypeUtils(table);
 
         // Check that the base expression (first child) is an array.
-        if (arrayAccessExpr.getNumChildren() < 2) {
-            // Should not occur if the grammar is correct.
-            return null;
-        }
         JmmNode arrayExpr = arrayAccessExpr.getChild(0);
         Type arrayType = typeUtils.getExprType(arrayExpr, currentMethod);
         if (!arrayType.isArray()) {
@@ -52,11 +56,11 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
                     null));
         }
 
-        // Check that the index (second child) is of type int.
+        // Check that the index expression (second child) is of type int.
         JmmNode indexExpr = arrayAccessExpr.getChild(1);
         Type indexType = typeUtils.getExprType(indexExpr, currentMethod);
         if (!"int".equals(indexType.getName()) || indexType.isArray()) {
-            String message = String.format("Array index must be of type int, but found: %s.", indexType);
+            String message = String.format("Array index must be an expression of type int, but found: %s.", indexType);
             addReport(Report.newError(Stage.SEMANTIC,
                     arrayAccessExpr.getLine(),
                     arrayAccessExpr.getColumn(),
