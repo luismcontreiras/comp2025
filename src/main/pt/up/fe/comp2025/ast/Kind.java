@@ -2,32 +2,54 @@ package pt.up.fe.comp2025.ast;
 
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.specs.util.SpecsStrings;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Enum that mirrors the nodes that are supported by the AST.
+ * Enum that mirrors the nodes supported by the AST.
  *
- * This enum allows to handle nodes in a safer and more flexible way that using strings with the names of the nodes.
+ * The constants have been adapted to match the alternative labels and rule names in your updated Javamm grammar.
  */
 public enum Kind {
+    // Program structure
     PROGRAM,
+    IMPORT_STMT,      // from #ImportStmt in importDecl
     CLASS_DECL,
     VAR_DECL,
-    TYPE,
     METHOD_DECL,
-    PARAM,
-    STMT,
-    ASSIGN_STMT,
-    RETURN_STMT,
-    EXPR,
-    BINARY_EXPR,
-    INTEGER_LITERAL,
-    VAR_REF_EXPR;
+    PARAM,            // from #ParamExp in param
 
+    // Type nodes (from the type rule alternatives)
+    TYPE,             // from #Var in type
+    VAR_ARRAY,        // from #VarArray in type
+    VAR_ARGS,         // from #VarArgs in type
+
+    // Statement nodes
+    STMT,
+    ASSIGN_STMT,      // for assignment statements (#AssignStmt)
+    RETURN_STMT,      // for return statements (if distinct)
+    WITH_ELSE_STMT,   // from withElse: 'if' '(' expr ')' withElse 'else' withElse #WithElseStmt
+    OTHER_STMT,       // from withElse: other #OtherStmt
+    NO_ELSE_STMT,     // from noElse alternatives labeled #NoElseStmt
+    WHILE_STMT,       // for while statements, e.g., 'while' '(' expr ')' stmt (#WhileStmt)
+
+    // Expression nodes
+    PARENTHESIZED_EXPR,   // from #ParenthesizedExpr
+    ARRAY_LITERAL_EXPR,   // from #ArrayLiteralExpr
+    INTEGER_LITERAL,      // from #IntegerLiteral
+    BOOLEAN_TRUE,         // from #BooleanTrue
+    BOOLEAN_FALSE,        // from #BooleanFalse
+    VAR_REF_EXPR,         // from #VarRefExpr
+    THIS_EXPR,            // from #ThisExpr
+    UNARY_EXPR,           // from #UnaryExpr
+    NEW_INT_ARRAY_EXPR,   // from #NewIntArrayExpr
+    NEW_OBJECT_EXPR,      // from #NewObjectExpr
+    POSTFIX_EXPR,         // from #PostfixExpr
+    ARRAY_ACCESS_EXPR,    // from #ArrayAccessExpr
+    ARRAY_LENGTH_EXPR,    // from #ArrayLengthExpr
+    METHOD_CALL_EXPR,     // from #MethodCallExpr
+    BINARY_EXPR;          // from all binary operations unified as #BinaryExpr
 
     private final String name;
 
@@ -40,7 +62,6 @@ public enum Kind {
     }
 
     public static Kind fromString(String kind) {
-
         for (Kind k : Kind.values()) {
             if (k.getNodeName().equals(kind)) {
                 return k;
@@ -52,11 +73,9 @@ public enum Kind {
     public static List<String> toNodeName(Kind firstKind, Kind... otherKinds) {
         var nodeNames = new ArrayList<String>();
         nodeNames.add(firstKind.getNodeName());
-
-        for(Kind kind : otherKinds) {
+        for (Kind kind : otherKinds) {
             nodeNames.add(kind.getNodeName());
         }
-
         return nodeNames;
     }
 
@@ -72,8 +91,8 @@ public enum Kind {
     /**
      * Tests if the given JmmNode has the same kind as this type.
      *
-     * @param node
-     * @return
+     * @param node the AST node to check.
+     * @return true if the node is an instance of this Kind.
      */
     public boolean check(JmmNode node) {
         return node.isInstance(this);
@@ -82,45 +101,38 @@ public enum Kind {
     /**
      * Performs a check and throws if the test fails. Otherwise, does nothing.
      *
-     * @param node
+     * @param node the AST node to check.
      */
     public void checkOrThrow(JmmNode node) {
-
         if (!check(node)) {
             throw new RuntimeException("Node '" + node + "' is not a '" + getNodeName() + "'");
         }
     }
 
     /**
-     * Performs a check on all kinds to test and returns false if none matches. Otherwise, returns true.
+     * Checks if the node matches any of the given kinds.
      *
-     * @param node
-     * @param kindsToTest
-     * @return
+     * @param node the AST node to check.
+     * @param kindsToTest the kinds to test against.
+     * @return true if the node matches any of the given kinds.
      */
     public static boolean check(JmmNode node, Kind... kindsToTest) {
-
         for (Kind k : kindsToTest) {
-
-            // if any matches, return successfully
             if (k.check(node)) {
-
                 return true;
             }
         }
-
         return false;
     }
 
     /**
-     * Performs a check an all kinds to test and throws if none matches. Otherwise, does nothing.
+     * Checks and throws if the node does not match any of the given kinds.
      *
-     * @param node
-     * @param kindsToTest
+     * @param node the AST node to check.
+     * @param kindsToTest the kinds to test against.
      */
     public static void checkOrThrow(JmmNode node, Kind... kindsToTest) {
         if (!check(node, kindsToTest)) {
-            // throw if none matches
             throw new RuntimeException("Node '" + node + "' is not any of " + Arrays.asList(kindsToTest));
         }
     }
