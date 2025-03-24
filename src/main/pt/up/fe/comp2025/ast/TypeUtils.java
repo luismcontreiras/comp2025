@@ -160,13 +160,21 @@ public class TypeUtils {
             }
             case "ArrayLiteralExpr": {
                 if (expr.getChildren().isEmpty()) {
-                    return new Type("int", true);
-                } else {
-                    // Infer element type from the first expression and mark as an array.
-                    Type elementType = getExprType(expr.getChild(0), currentMethod);
-                    return new Type(elementType.getName(), true);
+                    return new Type("int", true); // empty literal defaults to int[]
                 }
+
+                Type firstType = getExprType(expr.getChild(0), currentMethod);
+
+                for (int i = 1; i < expr.getNumChildren(); i++) {
+                    Type currentType = getExprType(expr.getChild(i), currentMethod);
+                    if (!firstType.getName().equals(currentType.getName()) || firstType.isArray() != currentType.isArray()) {
+                        throw new RuntimeException("Inconsistent types in array initializer: " + firstType + " vs " + currentType);
+                    }
+                }
+
+                return new Type(firstType.getName(), true);
             }
+
             default:
                 throw new RuntimeException("Unsupported expression type: " + kind);
         }
