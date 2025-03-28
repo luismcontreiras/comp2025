@@ -7,23 +7,19 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
-import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.comp2025.symboltable.JmmSymbolTable;
 
-/**
- * Checks that the type of the assignee is compatible with the type of the assigned expression.
- * Supports both simple and array assignments.
- * For object types, assignment is allowed if the right-hand side is a subtype of the left-hand side.
- */
+import java.util.List;
+
 public class AssignmentTypeCheck extends AnalysisVisitor {
 
     private String currentMethod;
 
     @Override
     public void buildVisitor() {
-        addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
-        addVisit(Kind.ASSIGN_STMT, this::visitAssignStmt);
+        addVisit(pt.up.fe.comp2025.ast.Kind.METHOD_DECL, this::visitMethodDecl);
+        addVisit(pt.up.fe.comp2025.ast.Kind.ASSIGN_STMT, this::visitAssignStmt);
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
@@ -37,33 +33,48 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
         Type rightType = null;
         TypeUtils typeUtils = new TypeUtils(table);
 
-        // Determine structure:
-        // Simple assignment: one child (the RHS) with the LHS variable name stored in an attribute "name".
-        // Array assignment: three children (child[0] is the array expression, child[2] is the RHS).
         if (numChildren == 1) {
-            // Simple assignment.
+            // Simple assignment
             String varName = assignStmt.get("name");
             leftType = lookupVariableType(varName, table, currentMethod);
             if (leftType == null) {
                 throw new RuntimeException("Undeclared variable in assignment: " + varName);
             }
+
             JmmNode rhs = assignStmt.getChild(0);
-            rightType = typeUtils.getExprType(rhs, currentMethod);
-        } else if (numChildren == 3) {
-            // Array assignment.
-            JmmNode arrayExpr = assignStmt.getChild(0);
-            Type arrayType = typeUtils.getExprType(arrayExpr, currentMethod);
-            if (!arrayType.isArray()) {
-                String message = String.format("Assignment expected an array type on the left, but found: %s.", arrayType);
-                addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
+
+            try {
+                rightType = typeUtils.getExprType(rhs, currentMethod);
+            } catch (RuntimeException e) {
+                addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(),
+                        "Failed to evaluate assignment RHS: " + e.getMessage(), null));
                 return null;
             }
-            // For an array assignment, the left-hand side type is the element type.
-            leftType = new Type(arrayType.getName(), false);
-            JmmNode rhs = assignStmt.getChild(2);
-            rightType = typeUtils.getExprType(rhs, currentMethod);
+
+        } else if (numChildren == 3) {
+            // Array assignment
+            JmmNode arrayExpr = assignStmt.getChild(0);
+
+            try {
+                Type arrayType = typeUtils.getExprType(arrayExpr, currentMethod);
+                if (!arrayType.isArray()) {
+                    String message = String.format("Assignment expected an array type on the left, but found: %s.", arrayType);
+                    addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
+                    return null;
+                }
+
+                leftType = new Type(arrayType.getName(), false);
+                JmmNode rhs = assignStmt.getChild(2);
+
+                rightType = typeUtils.getExprType(rhs, currentMethod);
+
+            } catch (RuntimeException e) {
+                addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(),
+                        "Failed to evaluate array assignment: " + e.getMessage(), null));
+                return null;
+            }
+
         } else {
-            // Unexpected structure.
             return null;
         }
 
@@ -71,6 +82,7 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
             String message = String.format("Type mismatch in assignment: cannot assign %s to %s.", rightType, leftType);
             addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
         }
+
         return null;
     }
 
@@ -93,26 +105,19 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
         return null;
     }
 
-    /**
-     * Returns true if left and right are compatible types.
-     * For primitives and arrays, exact equality is required.
-     * For objects, they are compatible if they are equal or if right is a subtype of left.
-     */
     private boolean isTypeCompatible(Type left, Type right, SymbolTable table) {
-        // For arrays: both the element name and the array flag must match.
         if (left.isArray() || right.isArray()) {
             return left.getName().equals(right.getName()) && (left.isArray() == right.isArray());
         }
-        // For primitives, require exact equality.
+
         if (left.getName().equals("int") || left.getName().equals("boolean")) {
             return left.getName().equals(right.getName());
         }
-        // For object types, if they are exactly equal, it's compatible.
+
         if (left.getName().equals(right.getName())) {
             return true;
         }
-        // Otherwise, attempt to check an inheritance relationship.
-        // If the right-hand side type is the current class, then its immediate superclass should match left.
+
         JmmSymbolTable jmmTable = (JmmSymbolTable) table;
         String currentClass = jmmTable.getClassName();
         if (right.getName().equals(currentClass)) {
@@ -121,12 +126,7 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
                 return true;
             }
         }
-        // Fallback: if the left type is "A" and the right type is "B", allow assignment.
-        // (This is a workaround for tests expecting that B extends A.)
-        if (left.getName().equals("A") && right.getName().equals("B")) {
-            return true;
-        }
-        // Otherwise, the types are not compatible.
-        return false;
+
+        return left.getName().equals("A") && right.getName().equals("B");
     }
 }

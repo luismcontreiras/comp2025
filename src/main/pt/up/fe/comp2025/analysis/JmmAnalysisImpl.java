@@ -38,7 +38,9 @@ public class JmmAnalysisImpl implements JmmAnalysis {
                 new ArrayAccessCombinedCheck(),
                 new MethodVerificationVisitor(),
                 new AssignmentTypeCheck(),
-                new ConditionCheck()
+                new ConditionCheck(),
+                new ArrayInitializerUsageCheck()
+
         );
 
 

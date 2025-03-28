@@ -252,4 +252,23 @@ public class GrammarTest {
         TestUtils.parseVerbose("[10, 20, 30]", EXPRESSION);
     }
 
+    //---------------------------------------------
+    // CUSTOM TESTS
+    //---------------------------------------------
+
+    @Test
+    public void testExprEmptyArrayLiteral() {
+        TestUtils.parseVerbose("[]", EXPRESSION);
+    }
+
+    @Test
+    public void testExprNestedChainedAccess() {
+        TestUtils.parseVerbose("(((obj.method()[1])).length)", EXPRESSION);
+    }
+
+
+
+
+
+
 }

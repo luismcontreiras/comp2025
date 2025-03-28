@@ -1,0 +1,5 @@
+class Varargs {
+    public int sum(int... values) {
+        return 0;
+    }
+}

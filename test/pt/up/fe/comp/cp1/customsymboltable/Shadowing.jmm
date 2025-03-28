@@ -1,0 +1,9 @@
+class Shadowing {
+    int a;
+
+    public int getA() {
+        int a;
+        a = 10;
+        return a;
+    }
+}
