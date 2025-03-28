@@ -5,7 +5,7 @@ import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
 import pt.up.fe.specs.util.SpecsIo;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 /**
  * Test variable lookup.
@@ -129,5 +129,38 @@ public class SymbolTableTest {
         assertEquals("Parameter 1", "int", parameters.get(0).getType().getName());
         assertEquals("Parameter 2", "boolean", parameters.get(1).getType().getName());
         assertEquals("Parameter 3", "Parameters", parameters.get(2).getType().getName());
+    }
+
+    //---------------------------------------------
+    // CUSTOM TESTS
+    //---------------------------------------------
+
+    @Test
+    public void testVarargsParameter() {
+        var semantics = test("customsymboltable/Varargs.jmm", false);
+        var st = semantics.getSymbolTable();
+
+        assertEquals(1, st.getMethods().size());
+        var params = st.getParameters("sum");
+        assertEquals(1, params.size());
+        var param = params.getFirst();
+        assertEquals("values", param.getName());
+        assertEquals("int", param.getType().getName());
+        assertTrue("Varargs should be an array", param.getType().isArray());
+    }
+
+    @Test
+    public void testLocalVariableShadowsField() {
+        var semantics = test("customsymboltable/Shadowing.jmm", false);
+        var st = semantics.getSymbolTable();
+
+        assertEquals(1, st.getFields().size());
+        assertEquals("a", st.getFields().get(0).getName());
+
+        var locals = st.getLocalVariables("getA");
+        assertEquals(1, locals.size());
+        assertEquals("a", locals.get(0).getName());
+        assertEquals("int", locals.get(0).getType().getName());
+
     }
 }
