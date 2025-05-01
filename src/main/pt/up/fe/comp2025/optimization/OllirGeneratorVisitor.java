@@ -210,7 +210,8 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         // Process statements
         for (var stmt : node.getChildren()) {
             if (STMT.check(stmt) || OTHER_STMT.check(stmt) ||
-                    WITH_ELSE_STMT.check(stmt) || NO_ELSE_STMT.check(stmt)) {
+                    WITH_ELSE_STMT.check(stmt) || NO_ELSE_STMT.check(stmt) ||
+                    RETURN_STMT.check(stmt)) {  // Make sure we check for RETURN_STMT as well
                 String stmtCode = visit(stmt);
                 if (!stmtCode.isEmpty()) {
                     code.append("    ").append(stmtCode);
@@ -218,12 +219,42 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
             }
         }
 
-        // Add return statement if not already present and not void
-        if (!name.equals("main") && !node.getChildren(RETURN_STMT).isEmpty()) {
-            JmmNode returnNode = node.getChildren(RETURN_STMT).get(0);
-            code.append("    ").append(visit(returnNode));
-        } else if (name.equals("main")) {
-            code.append("    ret.V;").append(NL);
+        // Add return statement if not already processed
+        boolean hasReturnStmt = false;
+        for (var child : node.getChildren()) {
+            if (RETURN_STMT.check(child)) {
+                hasReturnStmt = true;
+                break;
+            }
+        }
+
+        // If there's no return statement and it's not main, add a default return
+        if (!hasReturnStmt) {
+            if (name.equals("main")) {
+                code.append("    ret.V;").append(NL);
+            } else {
+                String returnTypeStr = ollirTypes.toOllirType(returnType);
+                // Generate default return value based on type
+                String defaultValue;
+                if (returnType.getName().equals("int")) {
+                    defaultValue = "0" + returnTypeStr;
+                } else if (returnType.getName().equals("boolean")) {
+                    defaultValue = "0" + returnTypeStr;
+                } else if (returnType.isArray()) {
+                    defaultValue = "new(array, 0)" + returnTypeStr;
+                } else if (!returnType.getName().equals("void")) {
+                    defaultValue = "new(" + returnType.getName() + ")" + returnTypeStr;
+                } else {
+                    // Void return
+                    code.append("    ret.V;").append(NL);
+                    defaultValue = null;
+                }
+
+                if (defaultValue != null) {
+                    code.append("    ret").append(returnTypeStr)
+                            .append(" ").append(defaultValue).append(";").append(NL);
+                }
+            }
         }
 
         // End method body
@@ -235,11 +266,16 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
 
     private String visitClass(JmmNode node, Void unused) {
-
         StringBuilder code = new StringBuilder();
 
         code.append(NL);
         code.append(table.getClassName());
+
+        // Add extends clause if there is a superclass
+        String superClassName = table.getSuper();
+        if (superClassName != null && !superClassName.isEmpty()) {
+            code.append(" extends ").append(superClassName);
+        }
 
         code.append(L_BRACKET);
         code.append(NL);
