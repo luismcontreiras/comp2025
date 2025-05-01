@@ -33,6 +33,9 @@ public enum Kind {
     OTHER_STMT,       // from withElse: other #OtherStmt
     NO_ELSE_STMT,     // from noElse alternatives labeled #NoElseStmt
     WHILE_STMT,       // for while statements, e.g., 'while' '(' expr ')' stmt (#WhileStmt)
+    BLOCK_STMT,       // from other: '{' ( stmt )* '}' #BlockStmt
+    FOR_STMT,         // from other: 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
+    EXPR_STMT,        // from other: expr ';' #ExprStmt
 
     // Expression nodes
     PARENTHESIZED_EXPR,   // from #ParenthesizedExpr
