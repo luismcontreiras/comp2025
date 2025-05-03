@@ -62,38 +62,42 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitAssignStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
 
-        // Check if we have enough children
         if (node.getNumChildren() < 2) {
-            // This is probably an assignment without a right-hand side
-            // Log or handle this case appropriately
             return "// Incomplete assignment statement\n";
         }
 
+        var lhs = node.getChild(0);
         var rhs = exprVisitor.visit(node.getChild(1));
-
-        // code to compute the children
         code.append(rhs.getComputation());
 
-        // code to compute self
-        // statement has type of lhs
-        var left = node.getChild(0);
-        Type thisType = types.getExprType(left);
-        String typeString = ollirTypes.toOllirType(thisType);
-        var varCode = left.get("name") + typeString;
+        Type lhsType = types.getExprType(lhs);
+        String ollirType = ollirTypes.toOllirType(lhsType);
+        String lhsName = lhs.get("name");
 
-        code.append(varCode);
-        code.append(SPACE);
+        // Get method name to check local vars
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse(null);
 
-        code.append(ASSIGN);
-        code.append(typeString);
-        code.append(SPACE);
+        boolean isLocal = methodName != null &&
+                (table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
+                        table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)));
 
-        code.append(rhs.getCode());
-
-        code.append(END_STMT);
+        if (!isLocal && table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName))) {
+            // FIELD ASSIGNMENT => putfield
+            String className = table.getClassName();
+            code.append("putfield(this.").append(className).append(", ")
+                    .append(lhsName).append(ollirType).append(", ")
+                    .append(rhs.getCode()).append(")")
+                    .append(ollirType).append(END_STMT);
+        } else {
+            // Local or param => normal assignment
+            code.append(lhsName).append(ollirType).append(SPACE)
+                    .append(ASSIGN).append(ollirType).append(SPACE)
+                    .append(rhs.getCode()).append(END_STMT);
+        }
 
         return code.toString();
     }
+
 
 
     private String visitReturn(JmmNode node, Void unused) {
@@ -277,10 +281,17 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
             code.append(" extends ").append(superClassName);
         }
 
-        code.append(L_BRACKET);
-        code.append(NL);
-        code.append(NL);
+        code.append(SPACE).append(L_BRACKET).append(NL).append(NL);
 
+        for (var field : table.getFields()) {
+            Type fieldType = field.getType();
+            String ollirType = ollirTypes.toOllirType(fieldType);
+            String fieldName = field.getName();
+
+            code.append(".field public ").append(fieldName).append(ollirType).append(";").append(NL);
+        }
+
+        code.append(NL);
         code.append(buildConstructor());
         code.append(NL);
 
@@ -290,9 +301,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         }
 
         code.append(R_BRACKET);
-
         return code.toString();
     }
+
 
     private String buildConstructor() {
 

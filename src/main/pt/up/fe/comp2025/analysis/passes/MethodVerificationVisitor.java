@@ -32,10 +32,12 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
         // Get caller type
         Type callerType = new TypeUtils(table).getExprType(callNode.getChild(0), currentMethod);
 
-        // If caller is not current class, assume import or superclass and skip verification
-        if (!callerType.getName().equals(table.getClassName())
-                && !callerType.getName().equals("this")
-                && !callerType.getName().equals("unknown")) {
+        String callerName = callNode.getChild(0).get("value");
+        if (table.getImports().stream().anyMatch(imp -> imp.equals(callerName)) ||
+                !callerType.getName().equals(table.getClassName()) &&
+                        !callerType.getName().equals("this") &&
+                        !callerType.getName().equals("unknown")) {
+            // Skip method verification if from import or external
             return null;
         }
 

@@ -98,15 +98,19 @@ public class TypeUtils {
                 String id = expr.get("value");
                 // Similar lookup as for VarRefExpr.
                 List<Symbol> locals = table.getLocalVariables(currentMethod);
-                for (Symbol symbol : locals) {
-                    if (symbol.getName().equals(id)) {
-                        return symbol.getType();
+                if (locals != null) {
+                    for (Symbol symbol : locals) {
+                        if (symbol.getName().equals(id)) {
+                            return symbol.getType();
+                        }
                     }
                 }
                 List<Symbol> params = table.getParameters(currentMethod);
-                for (Symbol symbol : params) {
-                    if (symbol.getName().equals(id)) {
-                        return symbol.getType();
+                if (params != null) {
+                    for (Symbol symbol : params) {
+                        if (symbol.getName().equals(id)) {
+                            return symbol.getType();
+                        }
                     }
                 }
                 for (Symbol symbol : table.getFields()) {

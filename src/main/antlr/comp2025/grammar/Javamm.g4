@@ -21,16 +21,20 @@ importDecl
     ;
 
 classDecl
-    : 'class' name=ID ( 'extends' extendedClass=ID )? '{' ( varDecl )* ( methodDecl )* '}'
+    : 'class' name=ID ( 'extends' extendedClass=ID )? '{' ( fieldsDecl | variableDecl )* ( methodDecl )* '}'
     ;
 
-varDecl
-    : type name=ID ';'
+variableDecl
+    : type name=ID ';' #VarDecl
+    ;
+
+fieldsDecl
+    : '.field' 'public'? name=ID '.' type ';' #FieldDecl
     ;
 
 methodDecl
-    : ('public')? type name=ID '(' ( param ( ',' param )* )? ')' '{' ( varDecl)* ( stmt )* 'return' expr ';' '}'
-    | ('public')? 'static' 'void' 'main' '(' 'String' '[' ']' name=ID ')' '{' ( varDecl )* ( stmt )* '}'
+    : ('public')? type name=ID '(' ( param ( ',' param )* )? ')' '{' ( variableDecl)* ( stmt )* 'return' expr ';' '}'
+    | ('public')? 'static' 'void' 'main' '(' 'String' '[' ']' name=ID ')' '{' ( variableDecl )* ( stmt )* '}'
     ;
 
 param

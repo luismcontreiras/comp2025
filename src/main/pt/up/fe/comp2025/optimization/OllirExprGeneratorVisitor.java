@@ -89,13 +89,34 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
     private OllirExprResult visitVarRef(JmmNode node, Void unused) {
         var id = node.get("value");
-        Type type = types.getExprType(node);
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
+        Type type = types.getExprType(node, methodName);
         String ollirType = ollirTypes.toOllirType(type);
 
-        String code = id + ollirType;
+        boolean isParam = table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(id));
+        boolean isLocalVar = table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(id));
+        boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(id));
 
-        return new OllirExprResult(code);
+        /*
+        System.out.println("[visitVarRef] id = " + id);
+        System.out.println("[visitVarRef] method = " + methodName);
+        System.out.println("[visitVarRef] params: " + table.getParameters(methodName));
+        System.out.println("[visitVarRef] locals: " + table.getLocalVariables(methodName));
+        System.out.println("[visitVarRef] fields: " + table.getFields());
+        */
+
+        if (!isParam && !isLocalVar && isField) {
+            String className = table.getClassName();
+            String code = "getfield(this." + className + ", " + id + ollirType + ")" + ollirType;
+            System.out.println("[visitVarRef] emitting getfield for field: " + id);
+            return new OllirExprResult(code);
+        }
+
+        return new OllirExprResult(id + ollirType);
     }
+
+
+
 
     private OllirExprResult visitBoolean(JmmNode node, Void unused) {
         Type boolType = new Type("boolean", false);
