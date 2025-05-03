@@ -32,12 +32,19 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
     }
 
     private Void visitAssignStmt(JmmNode node, SymbolTable table) {
-        if (node.getNumChildren() < 1) return null;
+        if (node.getNumChildren() != 2) return null;
 
-        String varName = node.get("name");
+        JmmNode left = node.getChild(0);
+        JmmNode right = node.getChild(1);
+
+        // Only handle simple variable references
+        if (!Kind.VAR_REF_EXPR.check(left)) {
+            return null;
+        }
+
+        String varName = left.get("value");
         Type expected = null;
 
-        // Lookup expected type from locals, params, or fields
         List<Symbol> locals = table.getLocalVariables(currentMethod);
         List<Symbol> params = table.getParameters(currentMethod);
         List<Symbol> fields = table.getFields();
@@ -66,11 +73,9 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
         }
 
         if (expected == null) {
-            // Some other pass will handle undeclared variables
+            // Some other pass handles undeclared variables
             return null;
         }
-
-        JmmNode right = node.getChild(0);
 
         try {
             Type actual = typeUtils.getExprType(right, currentMethod);

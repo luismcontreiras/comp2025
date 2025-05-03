@@ -119,10 +119,6 @@ public class JmmSymbolTableBuilder {
             String methodName = extractMethodName(method);
             List<Symbol> localsList = new ArrayList<>();
 
-            System.out.println("[buildLocals] Processing method: " + methodName);
-            for (JmmNode child : method.getChildren()) {
-                System.out.println("  child kind: " + child.getKind());
-            }
             for (JmmNode varDecl : method.getChildren(VAR_DECL)) {
                 if (varDecl.getChildren().isEmpty()) {
                     continue;
@@ -159,35 +155,15 @@ public class JmmSymbolTableBuilder {
         return imports;
     }
 
-    private static List<Symbol> getFieldsList(JmmNode classDecl) {
+    private static List<Symbol> getFieldsList(JmmNode methodDecl) {
         List<Symbol> fields = new ArrayList<>();
 
-        /*
-        System.out.println("[debug] classDecl children kinds:");
-        for (JmmNode child : classDecl.getChildren()) {
-            System.out.println(" - " + child.getKind());
-        }
-        */
-
-        for (JmmNode varDecl : classDecl.getChildren(VAR_DECL)) {
+        for (JmmNode varDecl : methodDecl.getChildren(VAR_DECL)) {
             if (varDecl.getChildren().isEmpty()) continue;
             JmmNode typeNode = varDecl.getChild(0);
             fields.add(new Symbol(TypeUtils.convertType(typeNode), varDecl.get("name")));
         }
 
-        for (JmmNode fieldDecl : classDecl.getChildren(FIELD_DECL)) {
-            if (fieldDecl.getChildren().isEmpty()) continue;
-            JmmNode typeNode = fieldDecl.getChild(0);
-            fields.add(new Symbol(TypeUtils.convertType(typeNode), fieldDecl.get("name")));
-        }
-
-        /*
-        System.out.println("[debug] Fields extracted into symbol table:");
-        for (Symbol field : fields) {
-            System.out.println(" - " + field);
-        }
-        System.out.println("[debug] fields size: " + fields.size());
-         */
         return fields;
     }
 }

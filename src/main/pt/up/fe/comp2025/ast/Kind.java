@@ -19,7 +19,6 @@ public enum Kind {
     VAR_DECL,
     METHOD_DECL,
     PARAM, // from #ParamExp in param
-    FIELD_DECL,
 
     // Type nodes (from the type rule alternatives)
     TYPE,             // from #Var in type
