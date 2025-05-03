@@ -282,9 +282,21 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         computation.append(code).append(SPACE)
                 .append(ASSIGN).append(ollirReturnType).append(SPACE);
 
-        // Use invokevirtual for instance methods
-        computation.append("invokevirtual(").append(callerExpr.getCode())
-                .append(", \"").append(methodName).append("\"");
+        String invokeKind;
+
+        // If caller is from an import (like 'io'), use invokestatic
+        String callerId = node.getChild(0).get("value");
+        boolean isStaticCall = table.getImports().stream().anyMatch(imp -> imp.endsWith(callerId));
+
+        if (isStaticCall) {
+            invokeKind = "invokestatic";
+            computation.append(invokeKind).append("(").append(callerId);
+        } else {
+            invokeKind = "invokevirtual";
+            computation.append(invokeKind).append("(").append(callerExpr.getCode());
+        }
+
+        computation.append(", \"").append(methodName).append("\"");
 
         // Add arguments if any
         if (args.length() > 0) {
@@ -292,6 +304,11 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         }
 
         computation.append(")").append(ollirReturnType).append(END_STMT);
+
+        System.out.println("[MethodCallExpr] caller = " + callerExpr.getCode());
+        System.out.println("[MethodCallExpr] method = " + methodName);
+        System.out.println("[MethodCallExpr] isStaticCall = " + isStaticCall);
+        System.out.println("[MethodCallExpr] imports = " + table.getImports());
 
         return new OllirExprResult(code, computation);
     }

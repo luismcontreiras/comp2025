@@ -119,6 +119,10 @@ public class JmmSymbolTableBuilder {
             String methodName = extractMethodName(method);
             List<Symbol> localsList = new ArrayList<>();
 
+            System.out.println("[buildLocals] Processing method: " + methodName);
+            for (JmmNode child : method.getChildren()) {
+                System.out.println("  child kind: " + child.getKind());
+            }
             for (JmmNode varDecl : method.getChildren(VAR_DECL)) {
                 if (varDecl.getChildren().isEmpty()) {
                     continue;
@@ -128,6 +132,7 @@ public class JmmSymbolTableBuilder {
             }
             localsMap.put(methodName, localsList);
         }
+
         return localsMap;
     }
 

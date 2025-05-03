@@ -50,6 +50,7 @@ type
 stmt
     : withElse
     | noElse
+    | other
     ;
 
 other

@@ -49,9 +49,11 @@ public class JmmParserImpl implements JmmParser {
             // Convert ANTLR CST to JmmNode AST
             var r = AntlrParser.parse(lex, parser, startingRule, config);
 
-            //if (r.getRootNode() != null) {
-            //    System.out.println("AST:\n" + r.getRootNode().toTree());
-            //}
+            System.out.println("=== AST Dump ===");
+            if (r.getRootNode() != null) {
+                System.out.println("AST:\n" + r.getRootNode().toTree());
+            }
+            System.out.println("================");
 
             return r;
 

@@ -74,6 +74,12 @@ public class TypeUtils {
                         return symbol.getType();
                     }
                 }
+                for (String imp : table.getImports()) {
+                    if (imp.endsWith("." + id) || imp.equals(id)) {
+                        return new Type(id, false); // Assume it's a class from import
+                    }
+                }
+
                 throw new RuntimeException("Undefined identifier: " + id);
             }
             case "ThisExpr":
@@ -136,8 +142,11 @@ public class TypeUtils {
                 // Evaluate the caller type.
                 Type callerType = getExprType(expr.getChild(0), currentMethod);
                 // In this implementation, we only have information for methods in the current class.
-                if (!callerType.getName().equals(table.getClassName())) {
-                    throw new RuntimeException("Method call on unknown class: " + callerType.getName());
+                String callerName = expr.getChild(0).get("value");
+                if (!callerType.getName().equals(table.getClassName())
+                        && !callerType.getName().equals("this")
+                        && table.getImports().stream().noneMatch(imp -> imp.endsWith("." + callerName) || imp.equals(callerName))) {
+                    return new Type("unknown", false); // assume it's external
                 }
                 Type returnType = table.getReturnType(methodName);
                 if (returnType == null) {

@@ -154,119 +154,72 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitMethodDecl(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder(".method ");
 
-        // Add access modifier if public
+        // Add access modifiers
         boolean isPublic = node.getBoolean("isPublic", false);
-        if (isPublic) {
-            code.append("public ");
-        }
-
-        // Handle static modifier for main method
+        if (isPublic) code.append("public ");
         boolean isStatic = node.getBoolean("isStatic", false);
-        if (isStatic) {
-            code.append("static ");
-        }
+        if (isStatic) code.append("static ");
 
-        // Add method name
+        // Method name
         String name = node.get("name");
-        code.append(name);
+        code.append(name).append("(");
 
-        // Process parameters
-        code.append("(");
-
-        // Get all parameter nodes
+        // Parameters
         var paramNodes = node.getChildren(PARAM);
         if (!paramNodes.isEmpty()) {
-            var paramCodes = paramNodes.stream()
-                    .map(this::visit)
-                    .collect(Collectors.joining(", "));
+            var paramCodes = paramNodes.stream().map(this::visit).collect(Collectors.joining(", "));
             code.append(paramCodes);
         }
 
         code.append(")");
 
-        // Add return type with null check
-        Type returnType;
-        if (name.equals("main")) {
-            returnType = new Type("void", false);
-        } else {
-            returnType = table.getReturnType(name);
-            if (returnType == null) {
-                // Default to void if return type is not found in symbol table
-                returnType = new Type("void", false);
-            }
-        }
+        // Return type
+        Type returnType = name.equals("main") ? new Type("void", false) : table.getReturnType(name);
+        if (returnType == null) returnType = new Type("void", false);
         code.append(ollirTypes.toOllirType(returnType));
 
-        // Start method body
-        code.append(L_BRACKET);
+        code.append(" {\n");
 
-        // Process local variable declarations
+        // Local variables
         for (var varDecl : node.getChildren(VAR_DECL)) {
             JmmNode typeNode = varDecl.getChild(0);
             String varName = varDecl.get("name");
             Type varType = types.convertType(typeNode);
             String ollirType = ollirTypes.toOllirType(varType);
-
             code.append("    ").append(varName).append(ollirType).append(" :=").append(ollirType)
-                    .append(" 0").append(ollirType).append(END_STMT);
+                    .append(" 0").append(ollirType).append(";\n");
         }
 
-        // Process statements
-        for (var stmt : node.getChildren()) {
-            if (STMT.check(stmt) || OTHER_STMT.check(stmt) ||
-                    WITH_ELSE_STMT.check(stmt) || NO_ELSE_STMT.check(stmt) ||
-                    RETURN_STMT.check(stmt)) {  // Make sure we check for RETURN_STMT as well
-                String stmtCode = visit(stmt);
+        // 🔥 PROCESS ALL CHILDREN THAT LOOK LIKE STATEMENTS
+        for (var child : node.getChildren()) {
+            String kind = child.getKind();
+
+            if (kind.endsWith("Stmt") || kind.contains("Stmt")) {
+                String stmtCode = visit(child);
                 if (!stmtCode.isEmpty()) {
                     code.append("    ").append(stmtCode);
                 }
             }
         }
 
-        // Add return statement if not already processed
-        boolean hasReturnStmt = false;
-        for (var child : node.getChildren()) {
-            if (RETURN_STMT.check(child)) {
-                hasReturnStmt = true;
-                break;
-            }
-        }
-
-        // If there's no return statement and it's not main, add a default return
-        if (!hasReturnStmt) {
-            if (name.equals("main")) {
-                code.append("    ret.V;").append(NL);
+        // Return fallback if no return statement exists
+        boolean hasReturn = node.getChildren().stream().anyMatch(child -> child.getKind().equals("ReturnStmt"));
+        if (!hasReturn) {
+            if (returnType.getName().equals("void")) {
+                code.append("    ret.V;\n");
             } else {
-                String returnTypeStr = ollirTypes.toOllirType(returnType);
-                // Generate default return value based on type
-                String defaultValue;
-                if (returnType.getName().equals("int")) {
-                    defaultValue = "0" + returnTypeStr;
-                } else if (returnType.getName().equals("boolean")) {
-                    defaultValue = "0" + returnTypeStr;
-                } else if (returnType.isArray()) {
-                    defaultValue = "new(array, 0)" + returnTypeStr;
-                } else if (!returnType.getName().equals("void")) {
-                    defaultValue = "new(" + returnType.getName() + ")" + returnTypeStr;
-                } else {
-                    // Void return
-                    code.append("    ret.V;").append(NL);
-                    defaultValue = null;
-                }
-
-                if (defaultValue != null) {
-                    code.append("    ret").append(returnTypeStr)
-                            .append(" ").append(defaultValue).append(";").append(NL);
-                }
+                String defaultVal = returnType.getName().equals("boolean") || returnType.getName().equals("int")
+                        ? "0" + ollirTypes.toOllirType(returnType)
+                        : "null" + ollirTypes.toOllirType(returnType);
+                code.append("    ret").append(ollirTypes.toOllirType(returnType))
+                        .append(" ").append(defaultVal).append(";\n");
             }
         }
 
-        // End method body
-        code.append(R_BRACKET);
-        code.append(NL);
-
+        code.append("}\n\n");
         return code.toString();
     }
+
 
 
     private String visitClass(JmmNode node, Void unused) {
@@ -473,6 +426,14 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitExprStmt(JmmNode node, Void unused) {
         // Expression statement - just evaluate the expression
         var exprResult = exprVisitor.visit(node.getChild(0));
+        if (exprResult.getComputation().isBlank()) {
+            // If it's a simple method call like `io.println(a);`, emit it explicitly
+            String code = exprResult.getCode() + ";\n";
+            System.out.println("[visitExprStmt] emitted simple expr: " + code.trim());
+            return code;
+        }
+
+        System.out.println("[visitExprStmt] emitted expr computation: " + exprResult.getComputation());
 
         return exprResult.getComputation();
     }
