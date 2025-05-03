@@ -62,50 +62,59 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitAssignStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
 
-        if (node.getNumChildren() < 2) {
-            System.out.println("[visitAssignStmt] Incomplete assignment node");
-            return "// Incomplete assignment statement\n";
+        System.out.println("[visitAssignStmt] Processing node: " + node);
+        System.out.println("[visitAssignStmt] Number of children: " + node.getNumChildren());
+
+        if (node.getNumChildren() != 1) {
+            System.out.println("[visitAssignStmt] Unexpected child count in AssignStmt: " + node.getNumChildren());
+            return "// Unexpected assign format\n";
         }
 
-        var lhs = node.getChild(0);
-        var rhsNode = node.getChild(1);
+        // Extract LHS from attribute, RHS from only child
+        String lhsName = node.get("name");
+        JmmNode rhsNode = node.getChild(0);
+
+        System.out.println("[visitAssignStmt] LHS name: " + lhsName);
+        System.out.println("[visitAssignStmt] RHS node: " + rhsNode);
+
         var rhs = exprVisitor.visit(rhsNode);
         code.append(rhs.getComputation());
 
-        // Get the variable name from LHS
-        String lhsName = node.get("name");
+        // Get context for scope detection
+        String methodName = node.getAncestor("MethodDecl").map(m -> m.get("name")).orElse("main");
 
-        // Get the method name to resolve locals/params
-        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
-
-        // Infer type from RHS, not from LHS node
+        // Infer type from RHS
         Type lhsType = types.getExprType(rhsNode, methodName);
         String ollirType = ollirTypes.toOllirType(lhsType);
 
-        // Determine scope: local/param vs field
-        boolean isLocalOrParam = table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
-                table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
+        boolean isLocalOrParam =
+                table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
+                        table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
 
-        boolean isField = table.getFields().stream().anyMatch(s -> s.getName().equals(lhsName));
+        boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
 
-        System.out.printf("[visitAssignStmt] lhs=%s | method=%s | isLocalOrParam=%b | isField=%b | type=%s\n",
-                lhsName, methodName, isLocalOrParam, isField, ollirType);
+        System.out.printf("[visitAssignStmt] lhsName=%s, method=%s, type=%s, isLocalOrParam=%b, isField=%b\n",
+                lhsName, methodName, ollirType, isLocalOrParam, isField);
 
         if (!isLocalOrParam && isField) {
-            // Field assignment -> use putfield
+            // Field assignment
             code.append("putfield(this.").append(table.getClassName())
                     .append(", ").append(lhsName).append(ollirType)
                     .append(", ").append(rhs.getCode()).append(")")
-                    .append(ollirType).append(END_STMT);
+                    .append(ollirType).append(";\n");
+            System.out.println("[visitAssignStmt] Emitted putfield for field: " + lhsName);
         } else {
-            // Local or param -> standard assignment
+            // Local or parameter assignment
             code.append(lhsName).append(ollirType).append(" ")
                     .append(ASSIGN).append(ollirType).append(" ")
-                    .append(rhs.getCode()).append(END_STMT);
+                    .append(rhs.getCode()).append(";\n");
+            System.out.println("[visitAssignStmt] Emitted local/param assignment for: " + lhsName);
         }
 
         return code.toString();
     }
+
+
 
 
 
