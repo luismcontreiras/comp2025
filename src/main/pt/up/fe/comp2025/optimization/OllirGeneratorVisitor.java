@@ -63,40 +63,53 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         StringBuilder code = new StringBuilder();
 
         if (node.getNumChildren() < 2) {
+            System.out.println("[visitAssignStmt] Incomplete assignment node");
             return "// Incomplete assignment statement\n";
         }
 
         var lhs = node.getChild(0);
-        var rhs = exprVisitor.visit(node.getChild(1));
+        var rhsNode = node.getChild(1);
+        var rhs = exprVisitor.visit(rhsNode);
         code.append(rhs.getComputation());
 
-        Type lhsType = types.getExprType(lhs);
+        // Get the variable name from LHS
+        String lhsName = node.get("name");
+
+        // Get the method name to resolve locals/params
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
+
+        // Infer type from RHS, not from LHS node
+        Type lhsType = types.getExprType(rhsNode, methodName);
         String ollirType = ollirTypes.toOllirType(lhsType);
-        String lhsName = lhs.get("name");
 
-        // Get method name to check local vars
-        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse(null);
+        // Determine scope: local/param vs field
+        boolean isLocalOrParam = table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
+                table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
 
-        boolean isLocal = methodName != null &&
-                (table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
-                        table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)));
+        boolean isField = table.getFields().stream().anyMatch(s -> s.getName().equals(lhsName));
 
-        if (!isLocal && table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName))) {
-            // FIELD ASSIGNMENT => putfield
-            String className = table.getClassName();
-            code.append("putfield(this.").append(className).append(", ")
-                    .append(lhsName).append(ollirType).append(", ")
-                    .append(rhs.getCode()).append(")")
+        System.out.printf("[visitAssignStmt] lhs=%s | method=%s | isLocalOrParam=%b | isField=%b | type=%s\n",
+                lhsName, methodName, isLocalOrParam, isField, ollirType);
+
+        if (!isLocalOrParam && isField) {
+            // Field assignment -> use putfield
+            code.append("putfield(this.").append(table.getClassName())
+                    .append(", ").append(lhsName).append(ollirType)
+                    .append(", ").append(rhs.getCode()).append(")")
                     .append(ollirType).append(END_STMT);
         } else {
-            // Local or param => normal assignment
-            code.append(lhsName).append(ollirType).append(SPACE)
-                    .append(ASSIGN).append(ollirType).append(SPACE)
+            // Local or param -> standard assignment
+            code.append(lhsName).append(ollirType).append(" ")
+                    .append(ASSIGN).append(ollirType).append(" ")
                     .append(rhs.getCode()).append(END_STMT);
         }
 
         return code.toString();
     }
+
+
+
+
 
 
 
@@ -190,7 +203,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                     .append(" 0").append(ollirType).append(";\n");
         }
 
-        // 🔥 PROCESS ALL CHILDREN THAT LOOK LIKE STATEMENTS
+        // Process statements and expressions
         for (var child : node.getChildren()) {
             String kind = child.getKind();
 
@@ -198,6 +211,26 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                 String stmtCode = visit(child);
                 if (!stmtCode.isEmpty()) {
                     code.append("    ").append(stmtCode);
+                }
+            } else if (kind.equals(VAR_REF_EXPR.getNodeName()) || kind.endsWith("Expr")) {
+                var exprResult = exprVisitor.visit(child);
+
+                if (!exprResult.getComputation().isBlank()) {
+                    code.append("    ").append(exprResult.getComputation());
+                }
+
+                // Emit a return using the evaluated expression
+                if (!exprResult.getCode().isBlank()) {
+                    String tempVar = ollirTypes.nextTemp("retVal");
+                    String retType = ollirTypes.toOllirType(returnType);
+
+                    // Assign result to temp
+                    code.append("    ").append(tempVar).append(retType)
+                            .append(" :=").append(retType)
+                            .append(" ").append(exprResult.getCode()).append(";\n");
+
+                    // Return the temp
+                    code.append("    ret").append(retType).append(" ").append(tempVar).append(retType).append(";\n");
                 }
             }
         }
@@ -219,6 +252,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         code.append("}\n\n");
         return code.toString();
     }
+
 
 
 

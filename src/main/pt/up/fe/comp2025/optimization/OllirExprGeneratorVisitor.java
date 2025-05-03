@@ -89,21 +89,44 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
     private OllirExprResult visitVarRef(JmmNode node, Void unused) {
         var id = node.get("value");
-        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse(null);
         Type type = types.getExprType(node, methodName);
         String ollirType = ollirTypes.toOllirType(type);
 
-        boolean isParam = table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(id));
-        boolean isLocalVar = table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(id));
-        boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(id));
+        boolean isParam = false;
+        boolean isLocalVar = false;
+        boolean isField = false;
 
-        /*
-        System.out.println("[visitVarRef] id = " + id);
-        System.out.println("[visitVarRef] method = " + methodName);
-        System.out.println("[visitVarRef] params: " + table.getParameters(methodName));
-        System.out.println("[visitVarRef] locals: " + table.getLocalVariables(methodName));
-        System.out.println("[visitVarRef] fields: " + table.getFields());
-        */
+        if (methodName != null) {
+            try {
+                var params = table.getParameters(methodName);
+                System.out.println("[visitVarRef] method '" + methodName + "' params = " + params);
+                isParam = params.stream().anyMatch(s -> s.getName().equals(id));
+            } catch (Exception e) {
+                System.out.println("[visitVarRef] param check failed: " + e.getMessage());
+            }
+
+            try {
+                var locals = table.getLocalVariables(methodName);
+                System.out.println("[visitVarRef] method '" + methodName + "' locals = " + locals);
+                isLocalVar = locals.stream().anyMatch(s -> s.getName().equals(id));
+            } catch (Exception e) {
+                System.out.println("[visitVarRef] local check failed: " + e.getMessage());
+            }
+        } else {
+            System.out.println("[visitVarRef] methodName is null");
+        }
+
+        try {
+            var fields = table.getFields();
+            System.out.println("[visitVarRef] class fields = " + fields);
+            isField = fields.stream().anyMatch(f -> f.getName().equals(id));
+        } catch (Exception e) {
+            System.out.println("[visitVarRef] field check failed: " + e.getMessage());
+        }
+
+        System.out.printf("[visitVarRef] id=%s | method=%s | isParam=%b | isLocal=%b | isField=%b\n",
+                id, methodName, isParam, isLocalVar, isField);
 
         if (!isParam && !isLocalVar && isField) {
             String className = table.getClassName();
@@ -112,8 +135,11 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
             return new OllirExprResult(code);
         }
 
+        System.out.println("[visitVarRef] treating '" + id + "' as local/param");
         return new OllirExprResult(id + ollirType);
     }
+
+
 
 
 
