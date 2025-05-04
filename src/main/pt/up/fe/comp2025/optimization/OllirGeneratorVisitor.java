@@ -382,14 +382,10 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         code.append(loopLabel).append(":").append(NL);
 
         var condExpr = exprVisitor.visit(node.getChild(0));
-        //System.out.println("[visitWhileStmt] Condition expression computation:\n" + condExpr.getComputation());
-        //System.out.println("[visitWhileStmt] Condition expression code: " + condExpr.getCode());
-
-        // Add any computation first
         code.append(condExpr.getComputation());
 
-        // Corrected if-syntax: no parentheses
-        code.append("if !").append(condExpr.getCode()).append(" goto ").append(endLabel).append(END_STMT);
+        // Fixed OLLIR syntax for the if statement
+        code.append("if (!.bool ").append(condExpr.getCode()).append(") goto ").append(endLabel).append(END_STMT);
 
         code.append(visit(node.getChild(1)));
         code.append("goto ").append(loopLabel).append(END_STMT);
@@ -397,7 +393,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return code.toString();
     }
-
 
 
 
