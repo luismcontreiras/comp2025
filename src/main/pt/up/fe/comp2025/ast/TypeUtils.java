@@ -45,6 +45,11 @@ public class TypeUtils {
      * @return the inferred type of the expression
      */
     public Type getExprType(JmmNode expr, String currentMethod) {
+        // Map synthetic 'args' method name to actual 'main'
+        if ("args".equals(currentMethod)) {
+            currentMethod = "main";
+        }
+
         String kind = expr.getKind();
         switch (kind) {
             case "IntegerLiteral":
@@ -74,6 +79,12 @@ public class TypeUtils {
                         return symbol.getType();
                     }
                 }
+                for (String imp : table.getImports()) {
+                    if (imp.endsWith("." + id) || imp.equals(id)) {
+                        return new Type(id, false); // Assume it's a class from import
+                    }
+                }
+
                 throw new RuntimeException("Undefined identifier: " + id);
             }
             case "ThisExpr":
@@ -81,7 +92,6 @@ public class TypeUtils {
             case "ParenthesizedExpr":
                 return getExprType(expr.getChild(0), currentMethod);
             case "UnaryExpr": {
-                // Assume the only supported unary operator is '!'
                 Type operandType = getExprType(expr.getChild(0), currentMethod);
                 if (!"boolean".equals(operandType.getName())) {
                     throw new RuntimeException("Unary operator '!' applied to non-boolean type");
@@ -90,95 +100,84 @@ public class TypeUtils {
             }
             case "NewIntArrayExpr":
                 return new Type("int", true);
-            case "NewObjectExpr": {
-                String objType = expr.get("value");
-                return new Type(objType, false);
-            }
+            case "NewObjectExpr":
+                return new Type(expr.get("value"), false);
             case "PostfixExpr": {
                 String id = expr.get("value");
-                // Similar lookup as for VarRefExpr.
                 List<Symbol> locals = table.getLocalVariables(currentMethod);
                 for (Symbol symbol : locals) {
-                    if (symbol.getName().equals(id)) {
-                        return symbol.getType();
-                    }
+                    if (symbol.getName().equals(id)) return symbol.getType();
                 }
                 List<Symbol> params = table.getParameters(currentMethod);
                 for (Symbol symbol : params) {
-                    if (symbol.getName().equals(id)) {
-                        return symbol.getType();
-                    }
+                    if (symbol.getName().equals(id)) return symbol.getType();
                 }
                 for (Symbol symbol : table.getFields()) {
-                    if (symbol.getName().equals(id)) {
-                        return symbol.getType();
-                    }
+                    if (symbol.getName().equals(id)) return symbol.getType();
                 }
                 throw new RuntimeException("Undefined identifier in postfix expression: " + id);
             }
             case "ArrayAccessExpr": {
-                // The first child is the array expression.
                 Type arrayType = getExprType(expr.getChild(0), currentMethod);
                 if (!arrayType.isArray()) {
                     throw new RuntimeException("Array access on non-array type: " + arrayType.getName());
                 }
-                // Return the element type.
                 return new Type(arrayType.getName(), false);
             }
             case "ArrayLengthExpr":
                 return new Type("int", false);
             case "MethodCallExpr": {
                 String methodName = expr.get("method");
-                // Evaluate the caller type.
                 Type callerType = getExprType(expr.getChild(0), currentMethod);
-                // In this implementation, we only have information for methods in the current class.
-                if (!callerType.getName().equals(table.getClassName())) {
-                    throw new RuntimeException("Method call on unknown class: " + callerType.getName());
+                String callerName = expr.getChild(0).getKind().equals("ThisExpr")
+                        ? "this"
+                        : expr.getChild(0).get("value");
+
+                boolean isExternalCaller = !callerType.getName().equals(table.getClassName())
+                        && table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerType.getName()) || imp.equals(callerType.getName()));
+
+                if (isExternalCaller) {
+                    return new Type("unknown", false); // Assume external call is valid
                 }
+
                 Type returnType = table.getReturnType(methodName);
                 if (returnType == null) {
+                    if (!callerType.getName().equals(table.getClassName())
+                            && !callerType.getName().equals("this")
+                            && table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerName) || imp.equals(callerName))) {
+                        return new Type("int", false); // Assume external method returns int
+                    }
                     throw new RuntimeException("Undefined method call: " + methodName);
                 }
+
                 return returnType;
             }
             case "BinaryExpr": {
-                // All binary operations are unified under BinaryExpr.
                 String op = expr.get("op");
-                if (op.equals("*") || op.equals("/") || op.equals("+") || op.equals("-")) {
-                    return new Type("int", false);
-                } else if (op.equals("<") || op.equals(">") || op.equals("<=") || op.equals(">=")
-                        || op.equals("==") || op.equals("!=")) {
-                    return new Type("boolean", false);
-                } else if (op.equals("&&") || op.equals("||")) {
-                    return new Type("boolean", false);
-                } else if (op.equals("+=") || op.equals("-=") || op.equals("*=") || op.equals("/=")) {
-                    // For assignment operators, return the type of the left-hand side.
-                    return getExprType(expr.getChild(0), currentMethod);
-                } else {
-                    throw new RuntimeException("Unsupported operator in BinaryExpr: " + op);
-                }
+                return switch (op) {
+                    case "*", "/", "+", "-" -> new Type("int", false);
+                    case "<", ">", "<=", ">=", "==", "!=" -> new Type("boolean", false);
+                    case "&&", "||" -> new Type("boolean", false);
+                    case "+=", "-=", "*=", "/=" -> getExprType(expr.getChild(0), currentMethod);
+                    default -> throw new RuntimeException("Unsupported operator in BinaryExpr: " + op);
+                };
             }
             case "ArrayLiteralExpr": {
-                if (expr.getChildren().isEmpty()) {
-                    return new Type("int", true); // empty literal defaults to int[]
-                }
-
+                if (expr.getChildren().isEmpty()) return new Type("int", true);
                 Type firstType = getExprType(expr.getChild(0), currentMethod);
-
                 for (int i = 1; i < expr.getNumChildren(); i++) {
-                    Type currentType = getExprType(expr.getChild(i), currentMethod);
-                    if (!firstType.getName().equals(currentType.getName()) || firstType.isArray() != currentType.isArray()) {
-                        throw new RuntimeException("Inconsistent types in array initializer: " + firstType + " vs " + currentType);
+                    Type t = getExprType(expr.getChild(i), currentMethod);
+                    if (!t.getName().equals(firstType.getName()) || t.isArray() != firstType.isArray()) {
+                        throw new RuntimeException("Inconsistent types in array initializer: " + firstType + " vs " + t);
                     }
                 }
-
                 return new Type(firstType.getName(), true);
             }
-
             default:
                 throw new RuntimeException("Unsupported expression type: " + kind);
         }
     }
+
 
     /**
      * Convenience method that assumes a 'main' method context.

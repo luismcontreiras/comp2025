@@ -22,71 +22,91 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] MethoodVerificationCheck — entering method: " + currentMethod);
         return null;
     }
 
     private Void checkMethodCall(JmmNode callNode, SymbolTable table) {
         String methodName = callNode.get("method");
 
-        // Get caller type
-        Type callerType = new TypeUtils(table).getExprType(callNode.getChild(0), currentMethod);
+        TypeUtils typeUtils = new TypeUtils(table);
 
-        // If caller is not current class, assume import or superclass and skip verification
-        if (!callerType.getName().equals(table.getClassName())
-                && !callerType.getName().equals("this")
-                && !callerType.getName().equals("unknown")) {
+        // Safely get the caller type
+        Type callerType;
+        try {
+            callerType = typeUtils.getExprType(callNode.getChild(0), currentMethod);
+        } catch (RuntimeException e) {
+            addReport(newError(callNode, "Failed to resolve caller type: " + e.getMessage()));
             return null;
         }
 
-        // If the method does not exist locally
-        if (!table.getMethods().contains(methodName)) {
-            if (table.getSuper() == null || table.getSuper().isEmpty()) {
-                addReport(newError(callNode, "Method '" + methodName + "' not declared in class and no superclass to look up."));
-                return null;
-            } else {
-                return null; // Assume exists in superclass
-            }
+        // If method is not declared locally and might be from import or superclass, assume valid and skip
+        boolean declaredLocally = table.getMethods().contains(methodName);
+        boolean fromImport = table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerType.getName()) || imp.equals(callerType.getName()));
+        boolean fromSuperclass = table.getSuper() != null && !table.getSuper().isEmpty();
+
+        if (!declaredLocally && (fromImport || fromSuperclass)) {
+            return null; // Assume method is valid
         }
 
-        List<JmmNode> args = callNode.getChildren().stream()
-                .filter(child -> child.getKind().equals("Expression") || child.hasAttribute("type"))
+        if (!declaredLocally) {
+            addReport(newError(callNode, "Method '" + methodName + "' not declared in class or imports."));
+            return null;
+        }
+
+        List<JmmNode> argNodes = callNode.getChildren().subList(1, callNode.getNumChildren());
+        List<Type> argTypes = argNodes.stream()
+                .map(arg -> {
+                    try {
+                        return typeUtils.getExprType(arg, currentMethod);
+                    } catch (Exception e) {
+                        addReport(newError(arg, "Could not determine argument type: " + e.getMessage()));
+                        return null;
+                    }
+                })
+                .filter(type -> type != null)
                 .collect(Collectors.toList());
 
         List<Symbol> methodParams = table.getParameters(methodName);
 
-        boolean hasVarargs = !methodParams.isEmpty() && methodParams.get(methodParams.size() - 1).getType().getName().equals("int") && methodParams.get(methodParams.size() - 1).getType().isArray();
+        boolean hasVarargs = !methodParams.isEmpty() &&
+                methodParams.get(methodParams.size() - 1).getType().isArray();
 
         if (hasVarargs) {
-            if (args.size() < methodParams.size() - 1) {
-                addReport(newError(callNode, "Method call to '" + methodName + "' has fewer arguments than required."));
+            int fixedArgs = methodParams.size() - 1;
+            if (argTypes.size() < fixedArgs) {
+                addReport(newError(callNode, "Too few arguments for varargs method '" + methodName + "'"));
                 return null;
             }
-
-            for (int i = 0; i < methodParams.size() - 1; i++) {
-                String expectedType = methodParams.get(i).getType().getName() + (methodParams.get(i).getType().isArray() ? "[]" : "");
-                String givenType = args.get(i).get("type");
-
-                if (!expectedType.equals(givenType)) {
-                    addReport(newError(callNode, "Type mismatch for argument " + (i + 1) + " in method '" + methodName + "'. Expected: " + expectedType + ", got: " + givenType));
+            for (int i = 0; i < fixedArgs; i++) {
+                Type expected = methodParams.get(i).getType();
+                Type actual = argTypes.get(i);
+                if (!expected.equals(actual)) {
+                    addReport(newError(callNode, String.format("Arg %d type mismatch in '%s': expected %s, got %s",
+                            i + 1, methodName, expected, actual)));
                 }
             }
         } else {
-            if (args.size() != methodParams.size()) {
-                addReport(newError(callNode, "Argument count mismatch in call to method '" + methodName + "'. Expected: " + methodParams.size() + ", got: " + args.size()));
+            if (argTypes.size() != methodParams.size()) {
+                addReport(newError(callNode, "Argument count mismatch in method '" + methodName + "': expected " +
+                        methodParams.size() + ", got " + argTypes.size()));
                 return null;
             }
 
             for (int i = 0; i < methodParams.size(); i++) {
-                String expectedType = methodParams.get(i).getType().getName() + (methodParams.get(i).getType().isArray() ? "[]" : "");
-                String givenType = args.get(i).get("type");
-
-                if (!expectedType.equals(givenType)) {
-                    addReport(newError(callNode, "Type mismatch for argument " + (i + 1) + " in method '" + methodName + "'. Expected: " + expectedType + ", got: " + givenType));
+                Type expected = methodParams.get(i).getType();
+                Type actual = argTypes.get(i);
+                if (!expected.equals(actual)) {
+                    addReport(newError(callNode, String.format("Arg %d type mismatch in '%s': expected %s, got %s",
+                            i + 1, methodName, expected, actual)));
                 }
             }
         }
 
         return null;
     }
+
+
 }

@@ -27,7 +27,9 @@ public class UndeclaredVariable extends AnalysisVisitor {
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
         // Set the current method context using the "name" attribute.
-        currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] UndeclaredVariable — entering method: " + currentMethod);
         return null;
     }
 

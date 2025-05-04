@@ -21,7 +21,7 @@ importDecl
     ;
 
 classDecl
-    : 'class' name=ID ( 'extends' extendedClass=ID )? '{' ( varDecl )* ( methodDecl )* '}'
+    : 'class' name=ID ( 'extends' extendedClass=ID )? '{' varDecl* ( methodDecl )* '}'
     ;
 
 varDecl
@@ -29,7 +29,7 @@ varDecl
     ;
 
 methodDecl
-    : ('public')? type name=ID '(' ( param ( ',' param )* )? ')' '{' ( varDecl)* ( stmt )* 'return' expr ';' '}'
+    : ('public')? type name=ID '(' ( param ( ',' param )* )? ')' '{' ( varDecl|stmt)* '}'
     | ('public')? 'static' 'void' 'main' '(' 'String' '[' ']' name=ID ')' '{' ( varDecl )* ( stmt )* '}'
     ;
 
@@ -38,33 +38,19 @@ param
     ;
 
 type
-    : value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | ID ) #Var
-    | value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | ID ) '[' ']' #VarArray
+    : value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | 'void' | ID ) #Var
+    | value=( 'int' | 'String' | 'boolean' | 'double' | 'float' | 'void' | ID ) '[' ']' #VarArray
     | value='int' '...'  #VarArgs
     ;
 
 stmt
-    : withElse
-    | noElse
-    ;
-
-other
     : '{' ( stmt )* '}' #BlockStmt
+    | 'if' '(' expr ')' stmt 'else' stmt #IfElseStmt
     | 'while' '(' expr ')' stmt #WhileStmt
-    | 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
+    | expr '=' expr ';' #AssignStmt
+    | '[' expr ']' '=' expr ';' #ArrayAssignStmt
+    | 'return' expr ';' #ReturnStmt
     | expr ';' #ExprStmt
-    | name=ID '=' expr ';' #AssignStmt
-    | name=ID '[' expr ']' '=' expr ';' #AssignStmt
-    ;
-
-withElse
-    : 'if' '(' expr ')' withElse 'else' withElse #WithElseStmt
-    | other #OtherStmt
-    ;
-
-noElse
-    : 'if' '(' expr ')' stmt #NoElseStmt
-    | 'if' '(' expr ')' withElse 'else' noElse #NoElseStmt
     ;
 
 expr

@@ -26,18 +26,26 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        this.currentMethod = methodDecl.get("name");
+        this.currentMethod = methodDecl.get("name").equals("args") ? "main" : methodDecl.get("name");
         this.typeUtils = new TypeUtils(table);
+        //System.out.println("[DEBUG] ArrayIntializerUsageCheck — entering method: " + currentMethod);
         return null;
     }
 
     private Void visitAssignStmt(JmmNode node, SymbolTable table) {
-        if (node.getNumChildren() < 1) return null;
+        if (node.getNumChildren() != 2) return null;
 
-        String varName = node.get("name");
+        JmmNode left = node.getChild(0);
+        JmmNode right = node.getChild(1);
+
+        // Only handle simple variable references
+        if (!Kind.VAR_REF_EXPR.check(left)) {
+            return null;
+        }
+
+        String varName = left.get("value");
         Type expected = null;
 
-        // Lookup expected type from locals, params, or fields
         List<Symbol> locals = table.getLocalVariables(currentMethod);
         List<Symbol> params = table.getParameters(currentMethod);
         List<Symbol> fields = table.getFields();
@@ -66,11 +74,9 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
         }
 
         if (expected == null) {
-            // Some other pass will handle undeclared variables
+            // Some other pass handles undeclared variables
             return null;
         }
-
-        JmmNode right = node.getChild(0);
 
         try {
             Type actual = typeUtils.getExprType(right, currentMethod);
@@ -91,7 +97,21 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
         try {
             Type actual = typeUtils.getExprType(expr, currentMethod);
             Type expected = table.getReturnType(currentMethod);
+
             checkArrayInitializerUsage(expr, expected, actual, node);
+
+            // ✅ Skip return type check if actual type is unknown
+            if (!"unknown".equals(actual.getName()) &&
+                    (!expected.getName().equals(actual.getName()) || expected.isArray() != actual.isArray())) {
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        node.getLine(),
+                        node.getColumn(),
+                        String.format("Return type mismatch in method '%s': expected %s, but found %s",
+                                currentMethod, expected, actual),
+                        null
+                ));
+            }
         } catch (RuntimeException e) {
             addReport(Report.newError(Stage.SEMANTIC, node.getLine(), node.getColumn(),
                     "Failed to evaluate return expression: " + e.getMessage(), null));

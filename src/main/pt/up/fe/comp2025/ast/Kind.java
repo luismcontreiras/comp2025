@@ -18,7 +18,7 @@ public enum Kind {
     CLASS_DECL,
     VAR_DECL,
     METHOD_DECL,
-    PARAM,            // from #ParamExp in param
+    PARAM, // from #ParamExp in param
 
     // Type nodes (from the type rule alternatives)
     TYPE,             // from #Var in type
@@ -29,10 +29,8 @@ public enum Kind {
     STMT,
     ASSIGN_STMT,      // for assignment statements (#AssignStmt)
     RETURN_STMT,      // for return statements (if distinct)
-    WITH_ELSE_STMT,   // from withElse: 'if' '(' expr ')' withElse 'else' withElse #WithElseStmt
-    OTHER_STMT,       // from withElse: other #OtherStmt
-    NO_ELSE_STMT,     // from noElse alternatives labeled #NoElseStmt
-    WHILE_STMT,       // for while statements, e.g., 'while' '(' expr ')' stmt (#WhileStmt)
+    WHILE_STMT, // for while statements, e.g., 'while' '(' expr ')' stmt (#WhileStmt)
+    IF_ELSE_STMT, // from ifElse alternatives labeled #IfElseStmt
     BLOCK_STMT,       // from other: '{' ( stmt )* '}' #BlockStmt
     FOR_STMT,         // from other: 'for' '(' stmt expr ';' expr ')' stmt #ForStmt
     EXPR_STMT,        // from other: expr ';' #ExprStmt

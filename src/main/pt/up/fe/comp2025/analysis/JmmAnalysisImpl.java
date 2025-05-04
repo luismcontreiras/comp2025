@@ -40,7 +40,6 @@ public class JmmAnalysisImpl implements JmmAnalysis {
                 new AssignmentTypeCheck(),
                 new ConditionCheck(),
                 new ArrayInitializerUsageCheck()
-
         );
 
 
@@ -50,10 +49,10 @@ public class JmmAnalysisImpl implements JmmAnalysis {
     public JmmSemanticsResult buildSymbolTable(JmmParserResult parserResult) {
         JmmNode rootNode = parserResult.getRootNode();
 
-        var symbolTableBuilder = new JmmSymbolTableBuilder();
-        SymbolTable table = symbolTableBuilder.build(rootNode);
+        JmmSymbolTableBuilder builder = new JmmSymbolTableBuilder();
+        SymbolTable table = builder.build(rootNode);
 
-        List<Report> reports = symbolTableBuilder.getReports();
+        List<Report> reports = builder.getReports();
 
         return new JmmSemanticsResult(parserResult, table, reports);
     }

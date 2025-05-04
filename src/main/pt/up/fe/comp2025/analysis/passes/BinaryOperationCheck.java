@@ -27,8 +27,9 @@ public class BinaryOperationCheck extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        // Set the current method (assumed to be stored in the "name" attribute)
-        currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] BinaryOperationCheck — entering method: " + currentMethod);
         return null;
     }
 
