@@ -48,11 +48,8 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         addVisit(PARAM, this::visitParam);
         addVisit(RETURN_STMT, this::visitReturn);
         addVisit(ASSIGN_STMT, this::visitAssignStmt);
-        addVisit(WITH_ELSE_STMT, this::visitWithElseStmt);
-        addVisit(NO_ELSE_STMT, this::visitNoElseStmt);
         addVisit(WHILE_STMT, this::visitWhileStmt);
         addVisit(BLOCK_STMT, this::visitBlockStmt);
-        addVisit(FOR_STMT, this::visitForStmt);
         addVisit(EXPR_STMT, this::visitExprStmt);
 
         setDefaultVisit(this::defaultVisit);

@@ -137,23 +137,40 @@ public class TypeUtils {
             }
             case "ArrayLengthExpr":
                 return new Type("int", false);
+
             case "MethodCallExpr": {
                 String methodName = expr.get("method");
-                // Evaluate the caller type.
+
                 Type callerType = getExprType(expr.getChild(0), currentMethod);
-                // In this implementation, we only have information for methods in the current class.
-                String callerName = expr.getChild(0).get("value");
-                if (!callerType.getName().equals(table.getClassName())
-                        && !callerType.getName().equals("this")
-                        && table.getImports().stream().noneMatch(imp -> imp.endsWith("." + callerName) || imp.equals(callerName))) {
-                    return new Type("unknown", false); // assume it's external
+                String callerName = expr.getChild(0).getKind().equals("ThisExpr")
+                        ? "this"
+                        : expr.getChild(0).get("value");
+
+                // If caller is external (i.e., imported or not declared in this class), assume method exists
+                boolean isExternalCaller = !callerType.getName().equals(table.getClassName())
+                        && table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerType.getName()) || imp.equals(callerType.getName()));
+
+                if (isExternalCaller) {
+                    return new Type("unknown", false); // skip checking, assume valid
                 }
+
                 Type returnType = table.getReturnType(methodName);
+
+                // If method not defined locally, assume it's valid if it's from import or superclass
                 if (returnType == null) {
+                    if (!callerType.getName().equals(table.getClassName())
+                            && !callerType.getName().equals("this")
+                            && table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerName) || imp.equals(callerName))) {
+                        return new Type("int", false); // Assume external method returns int
+                    }
+
+                    // Couldn’t resolve method and not from import — treat as error
                     throw new RuntimeException("Undefined method call: " + methodName);
                 }
+
                 return returnType;
             }
+
             case "BinaryExpr": {
                 // All binary operations are unified under BinaryExpr.
                 String op = expr.get("op");

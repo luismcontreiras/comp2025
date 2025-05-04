@@ -6,74 +6,76 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
-import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
+import pt.up.fe.comp2025.ast.Kind;
 
 public class ConditionCheck extends AnalysisVisitor {
 
+    private String currentMethod;
+
     @Override
     public void buildVisitor() {
-        // Register visit rules for if and while nodes.
-        // Adjust these names if your AST uses different kinds.
-        addVisit(Kind.WITH_ELSE_STMT, this::visitIfStmt);
-        addVisit(Kind.NO_ELSE_STMT, this::visitIfStmt);
+        addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
+        addVisit(Kind.IF_ELSE_STMT, this::visitIfStmt);
         addVisit(Kind.WHILE_STMT, this::visitWhileStmt);
     }
 
-
-    /**
-     * Checks that the condition expression of an if-statement evaluates to a boolean.
-     * Assumes that the first child of the if node is the condition.
-     */
-    private Void visitIfStmt(JmmNode node, SymbolTable table) {
-        if (node.getNumChildren() < 3) {
-            // Typically, an if-statement has at least three children: condition, then, else.
-            // If the structure is not as expected, we skip checking.
-            return null;
-        }
-        JmmNode condition = node.getChild(0);
-        Type condType;
-        try {
-            // Retrieve type of condition expression.
-            // Using "main" as fallback for method context if not provided.
-            String methodContext = node.get("method") != null ? node.get("method") : "main";
-            condType = new TypeUtils(table).getExprType(condition, methodContext);
-        } catch (RuntimeException e) {
-            addReport(Report.newError(Stage.SEMANTIC, condition.getLine(), condition.getColumn(),
-                    "Failed to evaluate condition type: " + e.getMessage(), null));
-            return null;
-        }
-        if (!"boolean".equals(condType.getName()) || condType.isArray()) {
-            addReport(Report.newError(Stage.SEMANTIC, condition.getLine(), condition.getColumn(),
-                    "Condition in 'if' must be boolean, but found: " + condType.getName(), null));
-        }
+    private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
+        this.currentMethod = methodDecl.get("name");
         return null;
     }
 
-    /**
-     * Checks that the condition expression of a while-statement evaluates to a boolean.
-     * Assumes that the first child of the while node is the condition.
-     */
-    private Void visitWhileStmt(JmmNode node, SymbolTable table) {
-        if (node.getNumChildren() < 2) {
-            // A while statement should have at least two children: condition and body.
-            return null;
-        }
+    private Void visitIfStmt(JmmNode node, SymbolTable table) {
         JmmNode condition = node.getChild(0);
-        Type condType;
+
         try {
-            String methodContext = node.get("method") != null ? node.get("method") : "main";
-            condType = new TypeUtils(table).getExprType(condition, methodContext);
+            Type condType = new TypeUtils(table).getExprType(condition, currentMethod);
+            if (!"boolean".equals(condType.getName()) || condType.isArray()) {
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        condition.getLine(),
+                        condition.getColumn(),
+                        "Condition in 'if' must be boolean, but found: " + condType.getName(),
+                        null
+                ));
+            }
         } catch (RuntimeException e) {
-            addReport(Report.newError(Stage.SEMANTIC, condition.getLine(), condition.getColumn(),
-                    "Failed to evaluate condition type: " + e.getMessage(), null));
-            return null;
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    condition.getLine(),
+                    condition.getColumn(),
+                    "Failed to evaluate 'if' condition: " + e.getMessage(),
+                    null
+            ));
         }
-        if (!"boolean".equals(condType.getName()) || condType.isArray()) {
-            addReport(Report.newError(Stage.SEMANTIC, condition.getLine(), condition.getColumn(),
-                    "Condition in 'while' must be boolean, but found: " + condType.getName(), null));
+
+        return null;
+    }
+
+    private Void visitWhileStmt(JmmNode node, SymbolTable table) {
+        JmmNode condition = node.getChild(0);
+
+        try {
+            Type condType = new TypeUtils(table).getExprType(condition, currentMethod);
+            if (!"boolean".equals(condType.getName()) || condType.isArray()) {
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        condition.getLine(),
+                        condition.getColumn(),
+                        "Condition in 'while' must be boolean, but found: " + condType.getName(),
+                        null
+                ));
+            }
+        } catch (RuntimeException e) {
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    condition.getLine(),
+                    condition.getColumn(),
+                    "Failed to evaluate 'while' condition: " + e.getMessage(),
+                    null
+            ));
         }
+
         return null;
     }
 }
-

@@ -96,7 +96,21 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
         try {
             Type actual = typeUtils.getExprType(expr, currentMethod);
             Type expected = table.getReturnType(currentMethod);
+
             checkArrayInitializerUsage(expr, expected, actual, node);
+
+            // ✅ Skip return type check if actual type is unknown
+            if (!"unknown".equals(actual.getName()) &&
+                    (!expected.getName().equals(actual.getName()) || expected.isArray() != actual.isArray())) {
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        node.getLine(),
+                        node.getColumn(),
+                        String.format("Return type mismatch in method '%s': expected %s, but found %s",
+                                currentMethod, expected, actual),
+                        null
+                ));
+            }
         } catch (RuntimeException e) {
             addReport(Report.newError(Stage.SEMANTIC, node.getLine(), node.getColumn(),
                     "Failed to evaluate return expression: " + e.getMessage(), null));

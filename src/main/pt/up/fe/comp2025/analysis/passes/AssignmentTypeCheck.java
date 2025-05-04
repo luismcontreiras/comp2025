@@ -33,39 +33,47 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
         Type rightType = null;
         TypeUtils typeUtils = new TypeUtils(table);
 
-        if (numChildren == 1) {
-            // Simple assignment
-            String varName = assignStmt.get("name");
-            leftType = lookupVariableType(varName, table, currentMethod);
-            if (leftType == null) {
-                throw new RuntimeException("Undeclared variable in assignment: " + varName);
+        if (numChildren == 2) {
+            // Simple assignment: a = expr;
+            JmmNode lhs = assignStmt.getChild(0);
+            JmmNode rhs = assignStmt.getChild(1);
+
+            if (!lhs.hasAttribute("value")) {
+                addReport(Report.newError(Stage.SEMANTIC, lhs.getLine(), lhs.getColumn(),
+                        "Left-hand side of assignment does not contain a valid variable reference", null));
+                return null;
             }
 
-            JmmNode rhs = assignStmt.getChild(0);
+            String varName = lhs.get("value");
+            leftType = lookupVariableType(varName, table, currentMethod);
+            if (leftType == null) {
+                addReport(Report.newError(Stage.SEMANTIC, lhs.getLine(), lhs.getColumn(),
+                        "Undeclared variable in assignment: " + varName, null));
+                return null;
+            }
 
             try {
                 rightType = typeUtils.getExprType(rhs, currentMethod);
             } catch (RuntimeException e) {
-                addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(),
+                addReport(Report.newError(Stage.SEMANTIC, rhs.getLine(), rhs.getColumn(),
                         "Failed to evaluate assignment RHS: " + e.getMessage(), null));
                 return null;
             }
 
         } else if (numChildren == 3) {
-            // Array assignment
+            // Array assignment: a[i] = expr;
             JmmNode arrayExpr = assignStmt.getChild(0);
+            JmmNode rhs = assignStmt.getChild(2);
 
             try {
                 Type arrayType = typeUtils.getExprType(arrayExpr, currentMethod);
                 if (!arrayType.isArray()) {
-                    String message = String.format("Assignment expected an array type on the left, but found: %s.", arrayType);
-                    addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
+                    addReport(Report.newError(Stage.SEMANTIC, arrayExpr.getLine(), arrayExpr.getColumn(),
+                            "Left-hand side is not an array, but used as one.", null));
                     return null;
                 }
 
                 leftType = new Type(arrayType.getName(), false);
-                JmmNode rhs = assignStmt.getChild(2);
-
                 rightType = typeUtils.getExprType(rhs, currentMethod);
 
             } catch (RuntimeException e) {
@@ -85,6 +93,7 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
 
         return null;
     }
+
 
     private Type lookupVariableType(String varName, SymbolTable table, String currentMethod) {
         for (Symbol symbol : table.getLocalVariables(currentMethod)) {
