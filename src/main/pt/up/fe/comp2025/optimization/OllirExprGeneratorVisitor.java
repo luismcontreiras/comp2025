@@ -143,19 +143,68 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
     private OllirExprResult visitVarRef(JmmNode node, Void unused) {
         var id = node.get("value");
-        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
+
+        // Get the current method name from ancestors
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName())
+                .map(m -> m.get("name"))
+                .orElse("main");
+
+        // Handle special case for "args" parameter in main method
         if ("args".equals(methodName)) methodName = "main";
 
-        Type type = types.getExprType(node, methodName);
+        Type type = null;
+
+        // Check local variables
+        for (var local : table.getLocalVariables(methodName)) {
+            if (local.getName().equals(id)) {
+                type = local.getType();
+                break;
+            }
+        }
+
+        // Check parameters if not found in locals
+        if (type == null) {
+            for (var param : table.getParameters(methodName)) {
+                if (param.getName().equals(id)) {
+                    type = param.getType();
+                    break;
+                }
+            }
+        }
+
+        // Check fields if not found in locals or parameters
+        if (type == null) {
+            for (var field : table.getFields()) {
+                if (field.getName().equals(id)) {
+                    type = field.getType();
+                    break;
+                }
+            }
+        }
+
+        // If still not found, check imports as a fallback
+        if (type == null) {
+            for (String imp : table.getImports()) {
+                if (imp.endsWith("." + id) || imp.equals(id)) {
+                    type = new Type(id, false);
+                    break;
+                }
+            }
+        }
+
+        // If still not found, throw a more informative error
+        if (type == null) {
+            throw new RuntimeException("Undefined identifier '" + id + "' in method '" + methodName + "'");
+        }
+
         String ollirType = ollirTypes.toOllirType(type);
 
-        // First check if it's a local variable or parameter
+        // Handle field access (if it's a field and not a local/parameter)
         boolean isLocal = table.getLocalVariables(methodName).stream()
                 .anyMatch(symbol -> symbol.getName().equals(id));
         boolean isParam = table.getParameters(methodName).stream()
                 .anyMatch(symbol -> symbol.getName().equals(id));
 
-        // Only consider it a field if it's not a local or parameter
         if (!isLocal && !isParam && table.getFields().stream().anyMatch(f -> f.getName().equals(id))) {
             // Create a temporary variable to hold the field value
             String tempVar = ollirTypes.nextTemp() + ollirType;
@@ -253,29 +302,47 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
     }
 
     private OllirExprResult visitArrayAccessExpr(JmmNode node, Void unused) {
-        var arrayExpr = visit(node.getChild(0));
-        var indexExpr = visit(node.getChild(1));
-
         StringBuilder computation = new StringBuilder();
+
+        // Get array expression and index expression
+        JmmNode arrayNode = node.getChild(0);
+        JmmNode indexNode = node.getChild(1);
+
+        // Get the method name from ancestors
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName())
+                .map(m -> m.get("name"))
+                .orElse("main");
+
+        // Handle special case for "args" parameter in main method
+        if ("args".equals(methodName)) methodName = "main";
+
+        // Visit array and index expressions to get their OLLIR code
+        OllirExprResult arrayExpr = visit(arrayNode);
+        OllirExprResult indexExpr = visit(indexNode);
+
+        // Add their computations
         computation.append(arrayExpr.getComputation());
         computation.append(indexExpr.getComputation());
 
-        Type elemType = types.getExprType(node);
-        String ollirType = ollirTypes.toOllirType(elemType);
-        String code = ollirTypes.nextTemp() + ollirType;
+        // Get element type (the type of array without the array part)
+        Type arrayType = types.getExprType(arrayNode, methodName);
+        if (!arrayType.isArray()) {
+            throw new RuntimeException("Expression is not an array: " + arrayNode);
+        }
 
-        // Get the element type
-        Type intType = TypeUtils.newIntType();
-        String intOllirType = ollirTypes.toOllirType(intType);
+        Type elementType = new Type(arrayType.getName(), false);
+        String ollirType = ollirTypes.toOllirType(elementType);
 
-        computation.append(code).append(SPACE)
-                .append(ASSIGN).append(ollirType).append(SPACE)
-                .append(arrayExpr.getCode()).append("[")
-                .append(indexExpr.getCode()).append("]")
-                .append(ollirType)
+        // Create temporary for the array access expression
+        String tempVar = ollirTypes.nextTemp("elem") + ollirType;
+
+        // Generate array access instruction
+        computation.append(tempVar).append(" :=").append(ollirType)
+                .append(" ").append(arrayExpr.getCode()).append("[")
+                .append(indexExpr.getCode()).append("]").append(ollirType)
                 .append(END_STMT);
 
-        return new OllirExprResult(code, computation);
+        return new OllirExprResult(tempVar, computation);
     }
 
     private OllirExprResult visitArrayLengthExpr(JmmNode node, Void unused) {
@@ -407,54 +474,39 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
     }
 
     private OllirExprResult visitArrayLiteralExpr(JmmNode node, Void unused) {
-        if (node.getNumChildren() == 0) {
-            // Handle empty array case
-            Type arrayType = new Type("int", true);
-            String ollirType = ollirTypes.toOllirType(arrayType);
-            String code = ollirTypes.nextTemp() + ollirType;
-
-            StringBuilder computation = new StringBuilder();
-            computation.append(code).append(SPACE)
-                    .append(ASSIGN).append(ollirType).append(SPACE)
-                    .append("new(array, 0)")
-                    .append(ollirType)
-                    .append(END_STMT);
-
-            return new OllirExprResult(code, computation);
-        }
-
-        // For non-empty arrays, create array of correct size and initialize elements
-        int size = node.getNumChildren();
-
-        // Determine element type from first element
-        Type elemType = types.getExprType(node.getChild(0));
-        Type arrayType = new Type(elemType.getName(), true);
-        String ollirType = ollirTypes.toOllirType(arrayType);
-        String elemOllirType = ollirTypes.toOllirType(elemType);
-
-        String arrayVar = ollirTypes.nextTemp() + ollirType;
-
         StringBuilder computation = new StringBuilder();
 
-        // Create array with the needed size
-        computation.append(arrayVar).append(SPACE)
-                .append(ASSIGN).append(ollirType).append(SPACE)
-                .append("new(array, ").append(size).append(".i32)")
-                .append(ollirType).append(END_STMT);
+        // Find the method name for context
+        String methodName = node.getAncestor("MethodDecl").map(m -> m.get("name")).orElse("main");
+        if ("args".equals(methodName)) methodName = "main";
 
-        // Initialize all array elements
-        Type intType = TypeUtils.newIntType();
-        String intOllirType = ollirTypes.toOllirType(intType);
+        // Determine the element type from first element or default to int
+        Type elemType = node.getNumChildren() > 0
+                ? types.getExprType(node.getChild(0), methodName)
+                : TypeUtils.newIntType();
 
-        for (int i = 0; i < size; i++) {
+        Type arrayType = new Type(elemType.getName(), true);
+        String ollirArrayType = ollirTypes.toOllirType(arrayType);
+        String ollirElemType = ollirTypes.toOllirType(elemType);
+
+        // Create variable for the new array
+        String arrayVar = ollirTypes.nextTemp("array") + ollirArrayType;
+
+        // Create new array of the correct size
+        computation.append(arrayVar).append(" :=").append(ollirArrayType)
+                .append(" new(array, ").append(node.getNumChildren()).append(")")
+                .append(ollirArrayType).append(END_STMT);
+
+        // Populate array elements
+        for (int i = 0; i < node.getNumChildren(); i++) {
             var elemExpr = visit(node.getChild(i));
             computation.append(elemExpr.getComputation());
 
-            // Set array[i] = element
-            computation.append(arrayVar).append("[").append(i).append(intOllirType).append("]")
-                    .append(elemOllirType).append(SPACE)
-                    .append(ASSIGN).append(elemOllirType).append(SPACE)
-                    .append(elemExpr.getCode()).append(END_STMT);
+            // Array assignment: array[index] = value
+            computation.append(arrayVar).append("[").append(i).append(".i32").append("]")
+                    .append(ollirElemType)
+                    .append(" :=").append(ollirElemType)
+                    .append(" ").append(elemExpr.getCode()).append(END_STMT);
         }
 
         return new OllirExprResult(arrayVar, computation);
