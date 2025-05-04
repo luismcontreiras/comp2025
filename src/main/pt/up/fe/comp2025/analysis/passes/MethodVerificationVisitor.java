@@ -22,7 +22,9 @@ public class MethodVerificationVisitor extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] MethoodVerificationCheck — entering method: " + currentMethod);
         return null;
     }
 

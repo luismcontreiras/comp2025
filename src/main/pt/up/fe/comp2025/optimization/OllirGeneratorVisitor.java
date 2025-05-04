@@ -60,8 +60,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitAssignStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
 
-        System.out.println("[visitAssignStmt] Processing node: " + node);
-        System.out.println("[visitAssignStmt] Number of children: " + node.getNumChildren());
 
         if (node.getNumChildren() != 2) {
             System.out.println("[visitAssignStmt] Unexpected child count in AssignStmt: " + node.getNumChildren());
@@ -108,8 +106,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
 
-        System.out.printf("[visitAssignStmt] lhsName=%s, method=%s, type=%s, isLocalOrParam=%b, isField=%b\n",
-                lhsName, methodName, ollirType, isLocalOrParam, isField);
 
         if (!isLocalOrParam && isField) {
             code.append("putfield(this.").append(table.getClassName())
@@ -344,6 +340,12 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     }
 
     private String visitWithElseStmt(JmmNode node, Void unused) {
+
+        System.out.println("[DEBUG] visitWithElseStmt:");
+        System.out.println("Condition: " + node.getChild(0).toTree());
+        System.out.println("Then block: " + node.getChild(1).toTree());
+        System.out.println("Else block: " + node.getChild(2).toTree());
+
         StringBuilder code = new StringBuilder();
 
         // Get the condition expression
@@ -353,44 +355,20 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         // Create a unique label for the else branch and the end
         String elseLabel = ollirTypes.nextTemp("else");
         String endLabel = ollirTypes.nextTemp("endif");
+        String thenLabel = ollirTypes.nextTemp("then");
 
         // If condition is false, jump to else
-        code.append("if (").append(condExpr.getCode()).append(") goto ").append(elseLabel).append(END_STMT);
-
-        // Then branch - visit the 'then' statement (child 1)
-        code.append(visit(node.getChild(1)));
-
-        // Jump to end after executing 'then'
-        code.append("goto ").append(endLabel).append(END_STMT);
-
-        // Else label and branch - visit the 'else' statement (child 2)
+        code.append("if (").append(condExpr.getCode()).append(") goto ").append(thenLabel).append(END_STMT);
         code.append(elseLabel).append(":").append(NL);
-        code.append(visit(node.getChild(2)));
-
-        // End label
+        code.append(visit(node.getChild(2).getChild(0)));
+        code.append("goto ").append(endLabel).append(END_STMT);
+        code.append(thenLabel).append(":").append(NL);
+        code.append(visit(node.getChild(1).getChild(0)));
         code.append(endLabel).append(":").append(NL);
 
-        return code.toString();
-    }
 
-    private String visitNoElseStmt(JmmNode node, Void unused) {
-        StringBuilder code = new StringBuilder();
+        System.out.println("[DEBUG] OLLIR if-else emitted:\n" + code);
 
-        // Get the condition expression
-        var condExpr = exprVisitor.visit(node.getChild(0));
-        code.append(condExpr.getComputation());
-
-        // Create a unique label for the end
-        String endLabel = ollirTypes.nextTemp("endif");
-
-        // If condition is false, jump to end
-        code.append("if (!").append(condExpr.getCode()).append(") goto ").append(endLabel).append(END_STMT);
-
-        // Visit the 'then' statement (child 1)
-        code.append(visit(node.getChild(1)));
-
-        // End label
-        code.append(endLabel).append(":").append(NL);
 
         return code.toString();
     }
@@ -398,31 +376,31 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitWhileStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
 
-        // Create unique labels for loop
         String loopLabel = ollirTypes.nextTemp("loop");
         String endLabel = ollirTypes.nextTemp("endloop");
 
-        // Loop label
         code.append(loopLabel).append(":").append(NL);
 
-        // Get the condition expression
         var condExpr = exprVisitor.visit(node.getChild(0));
+        //System.out.println("[visitWhileStmt] Condition expression computation:\n" + condExpr.getComputation());
+        //System.out.println("[visitWhileStmt] Condition expression code: " + condExpr.getCode());
+
+        // Add any computation first
         code.append(condExpr.getComputation());
 
-        // If condition is false, exit loop
-        code.append("if (!").append(condExpr.getCode()).append(") goto ").append(endLabel).append(END_STMT);
+        // Corrected if-syntax: no parentheses
+        code.append("if !").append(condExpr.getCode()).append(" goto ").append(endLabel).append(END_STMT);
 
-        // Loop body - visit the body statement (child 1)
         code.append(visit(node.getChild(1)));
-
-        // Jump back to start of loop
         code.append("goto ").append(loopLabel).append(END_STMT);
-
-        // End label
         code.append(endLabel).append(":").append(NL);
 
         return code.toString();
     }
+
+
+
+
 
     private String visitBlockStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
@@ -431,42 +409,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         for (JmmNode stmt : node.getChildren()) {
             code.append(visit(stmt));
         }
-
-        return code.toString();
-    }
-
-    private String visitForStmt(JmmNode node, Void unused) {
-        StringBuilder code = new StringBuilder();
-
-        // Create unique labels for loop
-        String loopLabel = ollirTypes.nextTemp("forloop");
-        String endLabel = ollirTypes.nextTemp("endforloop");
-
-        // Initialize loop variable (first child)
-        code.append(visit(node.getChild(0)));
-
-        // Loop label
-        code.append(loopLabel).append(":").append(NL);
-
-        // Get the condition expression (second child)
-        var condExpr = exprVisitor.visit(node.getChild(1));
-        code.append(condExpr.getComputation());
-
-        // If condition is false, exit loop
-        code.append("if (!").append(condExpr.getCode()).append(") goto ").append(endLabel).append(END_STMT);
-
-        // Loop body - visit the body statement (fourth child)
-        code.append(visit(node.getChild(3)));
-
-        // Update expression (third child)
-        var updateExpr = exprVisitor.visit(node.getChild(2));
-        code.append(updateExpr.getComputation());
-
-        // Jump back to start of loop
-        code.append("goto ").append(loopLabel).append(END_STMT);
-
-        // End label
-        code.append(endLabel).append(":").append(NL);
 
         return code.toString();
     }
@@ -481,7 +423,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
             return code;
         }
 
-        System.out.println("[visitExprStmt] emitted expr computation: " + exprResult.getComputation());
+        //System.out.println("[visitExprStmt] emitted expr computation: " + exprResult.getComputation());
 
         return exprResult.getComputation();
     }

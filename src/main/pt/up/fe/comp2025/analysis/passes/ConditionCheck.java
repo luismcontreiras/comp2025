@@ -21,7 +21,9 @@ public class ConditionCheck extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        this.currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] ConditionCheck — entering method: " + currentMethod);
         return null;
     }
 

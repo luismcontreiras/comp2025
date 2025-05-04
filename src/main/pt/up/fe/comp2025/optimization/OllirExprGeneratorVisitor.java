@@ -100,7 +100,6 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         if (methodName != null) {
             try {
                 var params = table.getParameters(methodName);
-                System.out.println("[visitVarRef] method '" + methodName + "' params = " + params);
                 isParam = params.stream().anyMatch(s -> s.getName().equals(id));
             } catch (Exception e) {
                 System.out.println("[visitVarRef] param check failed: " + e.getMessage());
@@ -108,7 +107,6 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
             try {
                 var locals = table.getLocalVariables(methodName);
-                System.out.println("[visitVarRef] method '" + methodName + "' locals = " + locals);
                 isLocalVar = locals.stream().anyMatch(s -> s.getName().equals(id));
             } catch (Exception e) {
                 System.out.println("[visitVarRef] local check failed: " + e.getMessage());
@@ -119,23 +117,17 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
         try {
             var fields = table.getFields();
-            System.out.println("[visitVarRef] class fields = " + fields);
             isField = fields.stream().anyMatch(f -> f.getName().equals(id));
         } catch (Exception e) {
             System.out.println("[visitVarRef] field check failed: " + e.getMessage());
         }
 
-        System.out.printf("[visitVarRef] id=%s | method=%s | isParam=%b | isLocal=%b | isField=%b\n",
-                id, methodName, isParam, isLocalVar, isField);
-
         if (!isParam && !isLocalVar && isField) {
             String className = table.getClassName();
             String code = "getfield(this." + className + ", " + id + ollirType + ")" + ollirType;
-            System.out.println("[visitVarRef] emitting getfield for field: " + id);
             return new OllirExprResult(code);
         }
 
-        System.out.println("[visitVarRef] treating '" + id + "' as local/param");
         return new OllirExprResult(id + ollirType);
     }
 
@@ -330,11 +322,6 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         }
 
         computation.append(")").append(ollirReturnType).append(END_STMT);
-
-        System.out.println("[MethodCallExpr] caller = " + callerExpr.getCode());
-        System.out.println("[MethodCallExpr] method = " + methodName);
-        System.out.println("[MethodCallExpr] isStaticCall = " + isStaticCall);
-        System.out.println("[MethodCallExpr] imports = " + table.getImports());
 
         return new OllirExprResult(code, computation);
     }

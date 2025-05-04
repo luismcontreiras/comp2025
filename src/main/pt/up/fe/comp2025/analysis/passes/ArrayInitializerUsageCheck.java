@@ -26,8 +26,9 @@ public class ArrayInitializerUsageCheck extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        this.currentMethod = methodDecl.get("name");
+        this.currentMethod = methodDecl.get("name").equals("args") ? "main" : methodDecl.get("name");
         this.typeUtils = new TypeUtils(table);
+        //System.out.println("[DEBUG] ArrayIntializerUsageCheck — entering method: " + currentMethod);
         return null;
     }
 

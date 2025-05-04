@@ -31,8 +31,9 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
-        // Save the current method name from the "name" attribute.
-        currentMethod = methodDecl.get("name");
+        String name = methodDecl.get("name");
+        currentMethod = name.equals("args") ? "main" : name;
+        //System.out.println("[DEBUG] ArrayAcessCombinedCheck — entering method: " + currentMethod);
         return null;
     }
 

@@ -71,7 +71,11 @@ public class JmmSymbolTableBuilder {
     }
 
     private String extractMethodName(JmmNode method) {
-        return hasValidReturnType(method) ? method.get("name") : "main";
+        String name = method.get("name");
+        if (name.equals("args") || name.equals("main")) {
+            return "main";
+        }
+        return name;
     }
 
     private Map<String, Type> buildReturnTypes(JmmNode classDecl) {
@@ -110,13 +114,25 @@ public class JmmSymbolTableBuilder {
             }
             paramsMap.put(methodName, paramsList);
         }
+
+        System.out.println("[DEBUG] buildParams() — params map:");
+        paramsMap.forEach((method, vars) -> {
+            System.out.println("  Method: " + method);
+            for (var var : vars) {
+                System.out.println("    Param: " + var.getName() + " : " + var.getType().print());
+            }
+        });
+
         return paramsMap;
     }
 
     private Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
         Map<String, List<Symbol>> localsMap = new HashMap<>();
         for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
-            String methodName = extractMethodName(method);
+            String methodName = method.get("name");
+            if (methodName.equals("args")) {
+                methodName = "main";
+            }
             List<Symbol> localsList = new ArrayList<>();
 
             for (JmmNode varDecl : method.getChildren(VAR_DECL)) {
@@ -128,6 +144,15 @@ public class JmmSymbolTableBuilder {
             }
             localsMap.put(methodName, localsList);
         }
+
+        System.out.println("[DEBUG] buildLocals() — locals map:");
+        localsMap.forEach((method, vars) -> {
+            System.out.println("  Method: " + method);
+            for (var var : vars) {
+                System.out.println("    Local: " + var.getName() + " : " + var.getType().print());
+            }
+        });
+
 
         return localsMap;
     }
