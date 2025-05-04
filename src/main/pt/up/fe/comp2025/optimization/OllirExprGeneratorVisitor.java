@@ -141,55 +141,39 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         return new OllirExprResult(resultVar, computation);
     }
 
-
     private OllirExprResult visitVarRef(JmmNode node, Void unused) {
         var id = node.get("value");
-        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse(null);
+        String methodName = node.getAncestor(METHOD_DECL.getNodeName()).map(m -> m.get("name")).orElse("main");
+        if ("args".equals(methodName)) methodName = "main";
+
         Type type = types.getExprType(node, methodName);
         String ollirType = ollirTypes.toOllirType(type);
 
-        boolean isParam = false;
-        boolean isLocalVar = false;
-        boolean isField = false;
+        // First check if it's a local variable or parameter
+        boolean isLocal = table.getLocalVariables(methodName).stream()
+                .anyMatch(symbol -> symbol.getName().equals(id));
+        boolean isParam = table.getParameters(methodName).stream()
+                .anyMatch(symbol -> symbol.getName().equals(id));
 
-        if (methodName != null) {
-            try {
-                var params = table.getParameters(methodName);
-                isParam = params.stream().anyMatch(s -> s.getName().equals(id));
-            } catch (Exception e) {
-                System.out.println("[visitVarRef] param check failed: " + e.getMessage());
-            }
+        // Only consider it a field if it's not a local or parameter
+        if (!isLocal && !isParam && table.getFields().stream().anyMatch(f -> f.getName().equals(id))) {
+            // Create a temporary variable to hold the field value
+            String tempVar = ollirTypes.nextTemp() + ollirType;
 
-            try {
-                var locals = table.getLocalVariables(methodName);
-                isLocalVar = locals.stream().anyMatch(s -> s.getName().equals(id));
-            } catch (Exception e) {
-                System.out.println("[visitVarRef] local check failed: " + e.getMessage());
-            }
-        } else {
-            System.out.println("[visitVarRef] methodName is null");
+            // Generate getfield instruction for the field
+            StringBuilder computation = new StringBuilder();
+            computation.append(tempVar).append(" :=").append(ollirType)
+                    .append(" getfield(this.")
+                    .append(table.getClassName()).append(", ")
+                    .append(id).append(ollirType).append(")")
+                    .append(ollirType).append(END_STMT);
+
+            return new OllirExprResult(tempVar, computation);
         }
 
-        try {
-            var fields = table.getFields();
-            isField = fields.stream().anyMatch(f -> f.getName().equals(id));
-        } catch (Exception e) {
-            System.out.println("[visitVarRef] field check failed: " + e.getMessage());
-        }
-
-        if (!isParam && !isLocalVar && isField) {
-            String className = table.getClassName();
-            String code = "getfield(this." + className + ", " + id + ollirType + ")" + ollirType;
-            return new OllirExprResult(code);
-        }
-
+        // For local variables or parameters, just return their name with type
         return new OllirExprResult(id + ollirType);
     }
-
-
-
-
-
 
     private OllirExprResult visitBoolean(JmmNode node, Void unused) {
         Type boolType = new Type("boolean", false);
