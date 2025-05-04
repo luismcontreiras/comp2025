@@ -51,6 +51,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         addVisit(WHILE_STMT, this::visitWhileStmt);
         addVisit(BLOCK_STMT, this::visitBlockStmt);
         addVisit(EXPR_STMT, this::visitExprStmt);
+        addVisit(IF_ELSE_STMT, this::visitWithElseStmt);
 
         setDefaultVisit(this::defaultVisit);
     }
@@ -62,62 +63,88 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         System.out.println("[visitAssignStmt] Processing node: " + node);
         System.out.println("[visitAssignStmt] Number of children: " + node.getNumChildren());
 
-        if (node.getNumChildren() != 1) {
-            System.out.println("[visitAssignStmt] Unexpected child count in AssignStmt: " + node.getNumChildren());
-            return "// Unexpected assign format\n";
+        // Handle format: AssignStmt(VarRefExpr, RHS)
+        if (node.getNumChildren() == 2) {
+            JmmNode lhs = node.getChild(0);
+            JmmNode rhs = node.getChild(1);
+
+            String lhsName = lhs.get("value");
+            var rhsResult = exprVisitor.visit(rhs);
+
+            code.append(rhsResult.getComputation());
+
+            String methodName = node.getAncestor("MethodDecl").map(m -> m.get("name")).orElse("main");
+            if (methodName.equals("args")) methodName = "main"; // fix for synthetic method
+
+            Type lhsType = types.getExprType(lhs, methodName);
+            String ollirType = ollirTypes.toOllirType(lhsType);
+
+            boolean isLocalOrParam =
+                    table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
+                            table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
+
+            boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
+
+            System.out.printf("[visitAssignStmt] lhsName=%s, method=%s, type=%s, isLocalOrParam=%b, isField=%b\n",
+                    lhsName, methodName, ollirType, isLocalOrParam, isField);
+
+            if (!isLocalOrParam && isField) {
+                code.append("putfield(this.").append(table.getClassName())
+                        .append(", ").append(lhsName).append(ollirType)
+                        .append(", ").append(rhsResult.getCode()).append(")")
+                        .append(ollirType).append(";\n");
+            } else {
+                code.append(lhsName).append(ollirType).append(" ")
+                        .append(ASSIGN).append(ollirType).append(" ")
+                        .append(rhsResult.getCode()).append(";\n");
+            }
+
+            return code.toString();
         }
 
-        // Extract LHS from attribute, RHS from only child
-        String lhsName = node.get("name");
-        JmmNode rhsNode = node.getChild(0);
+        // Handle fallback for AssignStmt with one child (if ever used)
+        if (node.getNumChildren() == 1) {
+            String lhsName = node.get("name");
+            JmmNode rhsNode = node.getChild(0);
 
-        System.out.println("[visitAssignStmt] LHS name: " + lhsName);
-        System.out.println("[visitAssignStmt] RHS node: " + rhsNode);
+            System.out.println("[visitAssignStmt] LHS name: " + lhsName);
+            System.out.println("[visitAssignStmt] RHS node: " + rhsNode);
 
-        var rhs = exprVisitor.visit(rhsNode);
-        code.append(rhs.getComputation());
+            var rhs = exprVisitor.visit(rhsNode);
+            code.append(rhs.getComputation());
 
-        // Get context for scope detection
-        String methodName = node.getAncestor("MethodDecl").map(m -> m.get("name")).orElse("main");
+            String methodName = node.getAncestor("MethodDecl").map(m -> m.get("name")).orElse("main");
+            if (methodName.equals("args")) methodName = "main"; // fix for synthetic method
 
-        // Infer type from RHS
-        Type lhsType = types.getExprType(rhsNode, methodName);
-        String ollirType = ollirTypes.toOllirType(lhsType);
+            Type lhsType = types.getExprType(rhsNode, methodName);
+            String ollirType = ollirTypes.toOllirType(lhsType);
 
-        boolean isLocalOrParam =
-                table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
-                        table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
+            boolean isLocalOrParam =
+                    table.getLocalVariables(methodName).stream().anyMatch(s -> s.getName().equals(lhsName)) ||
+                            table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
 
-        boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
+            boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
 
-        System.out.printf("[visitAssignStmt] lhsName=%s, method=%s, type=%s, isLocalOrParam=%b, isField=%b\n",
-                lhsName, methodName, ollirType, isLocalOrParam, isField);
+            System.out.printf("[visitAssignStmt] lhsName=%s, method=%s, type=%s, isLocalOrParam=%b, isField=%b\n",
+                    lhsName, methodName, ollirType, isLocalOrParam, isField);
 
-        if (!isLocalOrParam && isField) {
-            // Field assignment
-            code.append("putfield(this.").append(table.getClassName())
-                    .append(", ").append(lhsName).append(ollirType)
-                    .append(", ").append(rhs.getCode()).append(")")
-                    .append(ollirType).append(";\n");
-            System.out.println("[visitAssignStmt] Emitted putfield for field: " + lhsName);
-        } else {
-            // Local or parameter assignment
-            code.append(lhsName).append(ollirType).append(" ")
-                    .append(ASSIGN).append(ollirType).append(" ")
-                    .append(rhs.getCode()).append(";\n");
-            System.out.println("[visitAssignStmt] Emitted local/param assignment for: " + lhsName);
+            if (!isLocalOrParam && isField) {
+                code.append("putfield(this.").append(table.getClassName())
+                        .append(", ").append(lhsName).append(ollirType)
+                        .append(", ").append(rhs.getCode()).append(")")
+                        .append(ollirType).append(";\n");
+            } else {
+                code.append(lhsName).append(ollirType).append(" ")
+                        .append(ASSIGN).append(ollirType).append(" ")
+                        .append(rhs.getCode()).append(";\n");
+            }
+
+            return code.toString();
         }
 
-        return code.toString();
+        System.out.println("[visitAssignStmt] Unexpected child count in AssignStmt: " + node.getNumChildren());
+        return "// Unexpected assign format\n";
     }
-
-
-
-
-
-
-
-
 
     private String visitReturn(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
@@ -181,6 +208,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         // Method name
         String name = node.get("name");
+        if (name.equals("args")) name = "main";
         code.append(name).append("(");
 
         // Parameters
