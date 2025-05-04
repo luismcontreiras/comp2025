@@ -115,7 +115,7 @@ public class JmmSymbolTableBuilder {
             paramsMap.put(methodName, paramsList);
         }
 
-        System.out.println("[DEBUG] buildParams() — params map:");
+        //System.out.println("[DEBUG] buildParams() — params map:");
         paramsMap.forEach((method, vars) -> {
             System.out.println("  Method: " + method);
             for (var var : vars) {
@@ -145,7 +145,7 @@ public class JmmSymbolTableBuilder {
             localsMap.put(methodName, localsList);
         }
 
-        System.out.println("[DEBUG] buildLocals() — locals map:");
+        //System.out.println("[DEBUG] buildLocals() — locals map:");
         localsMap.forEach((method, vars) -> {
             System.out.println("  Method: " + method);
             for (var var : vars) {

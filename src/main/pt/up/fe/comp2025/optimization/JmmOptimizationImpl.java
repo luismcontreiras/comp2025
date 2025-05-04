@@ -24,11 +24,19 @@ public class JmmOptimizationImpl implements JmmOptimization {
 
     @Override
     public JmmSemanticsResult optimize(JmmSemanticsResult semanticsResult) {
+        var root = semanticsResult.getRootNode();
+        var table = semanticsResult.getSymbolTable();
 
-        //TODO: Do your AST-based optimizations here
+        boolean changed;
+        do {
+            ConstantFoldingVisitor folder = new ConstantFoldingVisitor(table);
+            folder.visit(root);
+            changed = folder.didChange();
+        } while (changed);
 
         return semanticsResult;
     }
+
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {

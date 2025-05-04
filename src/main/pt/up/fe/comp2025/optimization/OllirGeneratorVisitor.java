@@ -341,10 +341,12 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
     private String visitWithElseStmt(JmmNode node, Void unused) {
 
+        /*
         System.out.println("[DEBUG] visitWithElseStmt:");
         System.out.println("Condition: " + node.getChild(0).toTree());
         System.out.println("Then block: " + node.getChild(1).toTree());
         System.out.println("Else block: " + node.getChild(2).toTree());
+         */
 
         StringBuilder code = new StringBuilder();
 
@@ -367,7 +369,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         code.append(endLabel).append(":").append(NL);
 
 
-        System.out.println("[DEBUG] OLLIR if-else emitted:\n" + code);
+        //System.out.println("[DEBUG] OLLIR if-else emitted:\n" + code);
 
 
         return code.toString();
