@@ -61,29 +61,84 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
 
     private OllirExprResult visitBinExpr(JmmNode node, Void unused) {
-        var lhs = visit(node.getChild(0));
-        var rhs = visit(node.getChild(1));
-
+        String op = node.get("op");
         StringBuilder computation = new StringBuilder();
 
-        // Add code to compute the children
-        computation.append(lhs.getComputation());
-        computation.append(rhs.getComputation());
+        // Special case for logical AND (&&) - use short-circuit evaluation with branches
+        if (op.equals("&&")) {
+            // Get left and right operands
+            JmmNode leftNode = node.getChild(0);
+            JmmNode rightNode = node.getChild(1);
 
-        // Get operator and result type
-        String op = node.get("op");
-        Type resType = types.getExprType(node);
-        String resOllirType = ollirTypes.toOllirType(resType);
-        String code = ollirTypes.nextTemp() + resOllirType;
+            // Evaluate left operand
+            OllirExprResult leftResult = visit(leftNode);
+            computation.append(leftResult.getComputation());
 
-        // Generate the binary operation
-        computation.append(code).append(SPACE)
-                .append(ASSIGN).append(resOllirType).append(SPACE)
-                .append(lhs.getCode()).append(SPACE)
-                .append(op).append(resOllirType).append(SPACE)
-                .append(rhs.getCode()).append(END_STMT);
+            // Create result variable
+            String resultVar = ollirTypes.nextTemp() + ".bool";
 
-        return new OllirExprResult(code, computation);
+            // Create labels for short-circuit evaluation
+            String falseLabel = ollirTypes.nextTemp("false");
+            String endLabel = ollirTypes.nextTemp("end");
+
+            // If left operand is false, short-circuit to false result
+            // Fix: Ensure proper format for condition with parentheses
+            computation.append("if (").append(leftResult.getCode()).append(" ==.bool 0.bool) goto ").append(falseLabel).append(END_STMT);
+
+            // Evaluate right operand only if left is true
+            OllirExprResult rightResult = visit(rightNode);
+            computation.append(rightResult.getComputation());
+
+            // Set result based on right operand's value
+            computation.append(resultVar).append(" :=.bool ").append(rightResult.getCode()).append(END_STMT);
+            computation.append("goto ").append(endLabel).append(END_STMT);
+
+            // False label (short-circuit when left is false)
+            computation.append(falseLabel).append(":").append("\n");
+            computation.append(resultVar).append(" :=.bool 0.bool").append(END_STMT);
+
+            // End label
+            computation.append(endLabel).append(":").append("\n");
+
+            return new OllirExprResult(resultVar, computation);
+        }
+
+        // Handle other binary expressions normally
+        OllirExprResult leftResult = visit(node.getChild(0));
+        OllirExprResult rightResult = visit(node.getChild(1));
+
+        computation.append(leftResult.getComputation());
+        computation.append(rightResult.getComputation());
+
+        Type resultType = types.getExprType(node);
+        String ollirType = ollirTypes.toOllirType(resultType);
+
+        // Generate temporary variable for result
+        String resultVar = ollirTypes.nextTemp() + ollirType;
+
+        // Map JMM operators to OLLIR operators
+        String ollirOp = switch(op) {
+            case "+" -> "+";
+            case "-" -> "-";
+            case "*" -> "*";
+            case "/" -> "/";
+            case "<" -> "<";
+            case ">" -> ">";
+            case "<=" -> "<=";
+            case ">=" -> ">=";
+            case "==" -> "==";
+            case "!=" -> "!=";
+            case "||" -> "||";
+            // "&&" is handled above
+            default -> throw new RuntimeException("Unsupported binary operator: " + op);
+        };
+
+        computation.append(resultVar).append(" :=").append(ollirType).append(" ")
+                .append(leftResult.getCode()).append(" ")
+                .append(ollirOp).append(ollirType).append(" ")
+                .append(rightResult.getCode()).append(END_STMT);
+
+        return new OllirExprResult(resultVar, computation);
     }
 
 
