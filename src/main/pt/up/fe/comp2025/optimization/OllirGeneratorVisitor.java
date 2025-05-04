@@ -409,17 +409,10 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     }
 
     private String visitExprStmt(JmmNode node, Void unused) {
-        // Expression statement - just evaluate the expression
-        var exprResult = exprVisitor.visit(node.getChild(0));
-        if (exprResult.getComputation().isBlank()) {
-            // If it's a simple method call like `io.println(a);`, emit it explicitly
-            String code = exprResult.getCode() + ";\n";
-            System.out.println("[visitExprStmt] emitted simple expr: " + code.trim());
-            return code;
-        }
+        // Process the expression
+        var expr = exprVisitor.visit(node.getChild(0));
 
-        //System.out.println("[visitExprStmt] emitted expr computation: " + exprResult.getComputation());
-
-        return exprResult.getComputation();
+        // Return the computation which should include the method call
+        return expr.getComputation();
     }
 }

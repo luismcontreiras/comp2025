@@ -317,37 +317,45 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         // Determine the return type of the method
         Type returnType;
         try {
-            // Check if caller is "this" or a class instance
             JmmNode caller = node.getChild(0);
             if (caller.getKind().equals(THIS_EXPR.getNodeName()) ||
-                    (caller.getKind().equals(VAR_REF_EXPR.getNodeName()) &&
-                            types.getExprType(caller).getName().equals(table.getClassName()))) {
+                    (caller.getKind().equals(VAR_REF_EXPR.getNodeName()) && caller.get("value").equals(table.getClassName()))) {
                 returnType = table.getReturnType(methodName);
             } else {
-                // For external methods, try to get from symbol table or default to int
-                returnType = table.getReturnType(methodName);
+                returnType = types.getExprType(node);
             }
         } catch (Exception e) {
-            // If method is not found in symbol table, assume int return type
             returnType = TypeUtils.newIntType();
         }
 
         String ollirReturnType = ollirTypes.toOllirType(returnType);
         String code = ollirTypes.nextTemp() + ollirReturnType;
 
+        // Determine if this is called from an ExprStmt (where the result is ignored)
+        boolean isInExprStmt = node.getParent() != null && node.getParent().getKind().equals(EXPR_STMT.getNodeName());
+
         // Generate the method call
-        computation.append(code).append(SPACE)
-                .append(ASSIGN).append(ollirReturnType).append(SPACE);
+        if (!isInExprStmt) {
+            computation.append(code).append(SPACE)
+                    .append(ASSIGN).append(ollirReturnType).append(SPACE);
+        }
 
         String invokeKind;
+        // Create a final copy of callerId before using in lambda
+        final String callerIdFinal;
+        boolean isStaticCall = false;
 
-        // If caller is from an import (like 'io'), use invokestatic
-        String callerId = node.getChild(0).get("value");
-        boolean isStaticCall = table.getImports().stream().anyMatch(imp -> imp.endsWith(callerId));
+        // Check if the caller is a variable reference
+        if (node.getChild(0).getKind().equals(VAR_REF_EXPR.getNodeName())) {
+            callerIdFinal = node.getChild(0).get("value");
+            isStaticCall = table.getImports().stream().anyMatch(imp -> imp.endsWith("." + callerIdFinal) || imp.equals(callerIdFinal));
+        } else {
+            callerIdFinal = ""; // Default value for non-variable callers
+        }
 
         if (isStaticCall) {
             invokeKind = "invokestatic";
-            computation.append(invokeKind).append("(").append(callerId);
+            computation.append(invokeKind).append("(").append(callerIdFinal);
         } else {
             invokeKind = "invokevirtual";
             computation.append(invokeKind).append("(").append(callerExpr.getCode());
