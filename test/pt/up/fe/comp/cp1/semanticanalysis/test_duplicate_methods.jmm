@@ -1,0 +1,9 @@
+class Test {
+    public int foo() {
+        return 1;
+    }
+
+    public int foo() {  // Erro: método duplicado
+        return 2;
+    }
+}

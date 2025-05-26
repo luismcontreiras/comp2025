@@ -32,6 +32,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
      */
     private List<AnalysisVisitor> buildPasses(SymbolTable table) {
         return List.of(
+                new DuplicateCheck(),
                 new UndeclaredVariable(),
                 new BinaryOperationCheck(),
                 new ArrayArithmeticCheck(),

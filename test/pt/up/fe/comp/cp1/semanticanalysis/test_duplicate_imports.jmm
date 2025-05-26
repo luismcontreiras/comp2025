@@ -1,0 +1,6 @@
+import foo.bar.Test;
+import baz.Test;  // Erro: import com mesmo nome simples "Test"
+
+class MyClass {
+
+}

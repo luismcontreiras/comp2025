@@ -1,0 +1,5 @@
+class Test {
+    public int foo(int x, int x) {  // Erro: parâmetro duplicado
+        return x;
+    }
+}

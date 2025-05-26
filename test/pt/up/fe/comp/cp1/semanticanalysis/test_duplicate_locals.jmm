@@ -1,0 +1,8 @@
+class Test {
+    public int foo() {
+        int a;
+        int b;
+        int a;  // Erro: variável local duplicada
+        return 0;
+    }
+}
