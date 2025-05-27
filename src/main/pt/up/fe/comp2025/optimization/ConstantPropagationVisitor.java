@@ -5,13 +5,11 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.ast.JmmNodeImpl;
 import pt.up.fe.comp.jmm.ast.PreorderJmmVisitor;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
- * Implements constant propagation optimization.
- * FIXED: Never replaces variables on the LEFT side of assignments.
+ * Conservative Constant Propagation that handles loops correctly.
+ * Variables modified inside loops are not considered constant outside the loop.
  */
 public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void> {
 
@@ -22,12 +20,21 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void>
     // Map from variable name to its constant value (if any)
     private Map<String, ConstantValue> constantMap;
 
+    // Variables that are modified inside loops (cannot be constant)
+    private Set<String> loopModifiedVars;
+
+    // Track if we're inside a loop
+    private boolean insideLoop;
+
     public ConstantPropagationVisitor(SymbolTable table) {
         this.table = table;
         this.changed = false;
         this.constantMap = new HashMap<>();
+        this.loopModifiedVars = new HashSet<>();
+        this.insideLoop = false;
         setDefaultVisit(this::defaultVisit);
         addVisit("MethodDecl", this::visitMethodDecl);
+        addVisit("WhileStmt", this::visitWhileStmt);
         addVisit("AssignStmt", this::visitAssignStmt);
         addVisit("VarRefExpr", this::visitVarRefExpr);
     }
@@ -40,16 +47,39 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void>
         String name = methodDecl.get("name");
         currentMethod = name.equals("args") ? "main" : name;
 
-        // Clear constant map for each method (local scope)
+        // Reset state for each method
         constantMap.clear();
+        loopModifiedVars.clear();
+        insideLoop = false;
 
-        System.out.println("Starting constant propagation for method: " + currentMethod);
+        System.out.println("Starting conservative constant propagation for method: " + currentMethod);
 
-        // Continue visiting children
+        // First pass: identify variables modified in loops
+        identifyLoopModifiedVariables(methodDecl);
+
+        // Second pass: apply propagation
         for (var child : methodDecl.getChildren()) {
             visit(child);
         }
 
+        return null;
+    }
+
+    private Void visitWhileStmt(JmmNode whileStmt, String dummy) {
+        System.out.println("Entering while loop - disabling aggressive propagation");
+
+        boolean wasInsideLoop = insideLoop;
+        insideLoop = true;
+
+        // Visit condition
+        visit(whileStmt.getChild(0));
+
+        // Visit body
+        visit(whileStmt.getChild(1));
+
+        insideLoop = wasInsideLoop;
+
+        System.out.println("Exiting while loop");
         return null;
     }
 
@@ -63,28 +93,37 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void>
 
         // Only handle simple variable assignments (not array assignments)
         if (!lhs.getKind().equals("VarRefExpr")) {
-            // Visit RHS for other types of assignments
             visit(rhs);
             return null;
         }
 
         String varName = lhs.get("value");
 
-        // ❌ CRITICAL: Do NOT visit LHS - it's the target of assignment
-        // ✅ ONLY visit RHS to apply propagations there
+        // Visit RHS to apply propagations
         visit(rhs);
+
+        // Check if this variable was modified in a loop
+        if (loopModifiedVars.contains(varName)) {
+            System.out.println("Variable '" + varName + "' modified in loop - not constant");
+            constantMap.remove(varName);
+            return null;
+        }
 
         // Check if RHS is a constant after visiting it
         ConstantValue constantValue = getConstantValue(rhs);
 
-        if (constantValue != null) {
-            // This variable now has a constant value
+        if (constantValue != null && !insideLoop) {
+            // Only set as constant if not inside a loop
             constantMap.put(varName, constantValue);
             System.out.println("Variable '" + varName + "' assigned constant: " + constantValue);
         } else {
-            // This variable no longer has a constant value
+            // Variable is not constant
             constantMap.remove(varName);
-            System.out.println("Variable '" + varName + "' no longer constant");
+            if (insideLoop) {
+                System.out.println("Variable '" + varName + "' assigned inside loop - not constant");
+            } else {
+                System.out.println("Variable '" + varName + "' assigned non-constant value");
+            }
         }
 
         return null;
@@ -93,21 +132,30 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void>
     private Void visitVarRefExpr(JmmNode varRefExpr, String dummy) {
         String varName = varRefExpr.get("value");
 
-        // ❌ CRITICAL: Check if this is the LHS of an assignment
-        // If parent is AssignStmt and this is the first child, DON'T replace
+        // Check if this is the LHS of an assignment
         JmmNode parent = varRefExpr.getParent();
         if (parent != null && parent.getKind().equals("AssignStmt")) {
             if (parent.getChild(0) == varRefExpr) {
                 // This is the LHS of assignment, don't replace!
-                System.out.println("Skipping propagation for LHS variable: " + varName);
                 return null;
             }
+        }
+
+        // Don't propagate variables that are modified in loops
+        if (loopModifiedVars.contains(varName)) {
+            return null;
         }
 
         // Check if this variable has a known constant value
         ConstantValue constantValue = constantMap.get(varName);
 
         if (constantValue != null) {
+            // Be more conservative: don't propagate inside loops
+            if (insideLoop) {
+                System.out.println("Skipping propagation inside loop for: " + varName);
+                return null;
+            }
+
             // Replace variable reference with constant
             JmmNode replacement = createConstantNode(constantValue);
 
@@ -118,6 +166,41 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<String, Void>
         }
 
         return null;
+    }
+
+    /**
+     * First pass to identify variables that are modified inside loops
+     */
+    private void identifyLoopModifiedVariables(JmmNode node) {
+        if (node.getKind().equals("WhileStmt")) {
+            // Analyze the loop body to find modified variables
+            JmmNode loopBody = node.getChild(1);
+            findModifiedVariables(loopBody, loopModifiedVars);
+        }
+
+        // Recursively check children
+        for (var child : node.getChildren()) {
+            identifyLoopModifiedVariables(child);
+        }
+    }
+
+    /**
+     * Find all variables that are assigned in a given subtree
+     */
+    private void findModifiedVariables(JmmNode node, Set<String> modifiedVars) {
+        if (node.getKind().equals("AssignStmt") && node.getNumChildren() >= 2) {
+            JmmNode lhs = node.getChild(0);
+            if (lhs.getKind().equals("VarRefExpr")) {
+                String varName = lhs.get("value");
+                modifiedVars.add(varName);
+                System.out.println("Found loop-modified variable: " + varName);
+            }
+        }
+
+        // Recursively check children
+        for (var child : node.getChildren()) {
+            findModifiedVariables(child, modifiedVars);
+        }
     }
 
     private Void defaultVisit(JmmNode node, String dummy) {
