@@ -115,6 +115,14 @@ public class JmmSymbolTableBuilder {
             paramsMap.put(methodName, paramsList);
         }
 
+        // Ensure ALL methods from buildMethods() have entries, even if empty
+        List<String> allMethods = buildMethods(classDecl);
+        for (String methodName : allMethods) {
+            if (!paramsMap.containsKey(methodName)) {
+                paramsMap.put(methodName, new ArrayList<>());
+            }
+        }
+
         //System.out.println("[DEBUG] buildParams() — params map:");
         paramsMap.forEach((method, vars) -> {
             System.out.println("  Method: " + method);
@@ -129,10 +137,7 @@ public class JmmSymbolTableBuilder {
     private Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
         Map<String, List<Symbol>> localsMap = new HashMap<>();
         for (JmmNode method : classDecl.getChildren(METHOD_DECL)) {
-            String methodName = method.get("name");
-            if (methodName.equals("args")) {
-                methodName = "main";
-            }
+            String methodName = extractMethodName(method); // Use the same extraction method
             List<Symbol> localsList = new ArrayList<>();
 
             for (JmmNode varDecl : method.getChildren(VAR_DECL)) {
@@ -145,6 +150,14 @@ public class JmmSymbolTableBuilder {
             localsMap.put(methodName, localsList);
         }
 
+        // Ensure ALL methods from buildMethods() have entries, even if empty
+        List<String> allMethods = buildMethods(classDecl);
+        for (String methodName : allMethods) {
+            if (!localsMap.containsKey(methodName)) {
+                localsMap.put(methodName, new ArrayList<>());
+            }
+        }
+
         //System.out.println("[DEBUG] buildLocals() — locals map:");
         localsMap.forEach((method, vars) -> {
             System.out.println("  Method: " + method);
@@ -152,7 +165,6 @@ public class JmmSymbolTableBuilder {
                 System.out.println("    Local: " + var.getName() + " : " + var.getType().print());
             }
         });
-
 
         return localsMap;
     }

@@ -8,6 +8,9 @@ import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.specs.util.SpecsCheck;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Checks if an identifier used in the code is declared as either a local variable,
  * a method parameter, a class field, or corresponds to an imported class.
@@ -40,30 +43,47 @@ public class UndeclaredVariable extends AnalysisVisitor {
         String varRefName = varRefExpr.get("value");
 
         // Check if it is declared as a method parameter.
-        if (table.getParameters(currentMethod).stream()
+        List<pt.up.fe.comp.jmm.analysis.table.Symbol> parameters = table.getParameters(currentMethod);
+        if (parameters != null && parameters.stream()
                 .anyMatch(param -> param.getName().equals(varRefName))) {
             return null;
         }
 
         // Check if it is declared as a local variable.
-        if (table.getLocalVariables(currentMethod).stream()
+        List<pt.up.fe.comp.jmm.analysis.table.Symbol> localVariables = table.getLocalVariables(currentMethod);
+        if (localVariables != null && localVariables.stream()
                 .anyMatch(local -> local.getName().equals(varRefName))) {
             return null;
         }
 
         // Check if it is declared as a class field.
-        if (table.getFields().stream()
+        List<pt.up.fe.comp.jmm.analysis.table.Symbol> fields = table.getFields();
+        if (fields != null && fields.stream()
                 .anyMatch(field -> field.getName().equals(varRefName))) {
             return null;
         }
 
         // Check if it matches an imported class.
-        if (table.getImports().stream().anyMatch(importStr -> {
+        List<String> imports = table.getImports();
+        if (imports != null && imports.stream().anyMatch(importStr -> {
             // Extract the simple name (after the last dot).
             int lastDot = importStr.lastIndexOf('.');
             String simpleName = (lastDot >= 0) ? importStr.substring(lastDot + 1) : importStr;
             return simpleName.equals(varRefName);
         })) {
+            return null;
+        }
+
+        // Additional check: if the method doesn't exist in the symbol table,
+        // this might be a symbol table building issue, so report it differently
+        if (parameters == null) {
+            String message = String.format("Method '%s' not found in symbol table when checking variable '%s'.",
+                    currentMethod, varRefName);
+            addReport(Report.newError(Stage.SEMANTIC,
+                    varRefExpr.getLine(),
+                    varRefExpr.getColumn(),
+                    message,
+                    null));
             return null;
         }
 

@@ -74,12 +74,14 @@ public class JmmSymbolTable extends AJmmSymbolTable {
 
     @Override
     public List<Symbol> getParameters(String methodSignature) {
-        return params.getOrDefault(methodSignature, Collections.emptyList());
+        List<Symbol> result = params.get(methodSignature);
+        return result != null ? result : Collections.emptyList();
     }
 
     @Override
     public List<Symbol> getLocalVariables(String methodSignature) {
-        return locals.getOrDefault(methodSignature, Collections.emptyList());
+        List<Symbol> result = locals.get(methodSignature);
+        return result != null ? result : Collections.emptyList();
     }
 
     @Override
