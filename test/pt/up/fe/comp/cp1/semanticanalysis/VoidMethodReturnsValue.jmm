@@ -1,0 +1,9 @@
+class VoidMethodReturnsValue {
+    public void foo() {
+        return 10; // Erro: método void não deve retornar valor
+    }
+
+    public static void main(String[] args) {
+        return; // OK: método void pode ter return sem valor
+    }
+}

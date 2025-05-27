@@ -1,0 +1,9 @@
+class ReturnTypeMismatch {
+    public int foo() {
+        return true; // Erro: esperado int, encontrado boolean
+    }
+
+    public boolean bar() {
+        return 42; // Erro: esperado boolean, encontrado int
+    }
+}

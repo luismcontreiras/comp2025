@@ -1,0 +1,17 @@
+class CorrectReturns {
+    public int getNumber() {
+        return 42; // OK
+    }
+
+    public boolean getFlag() {
+        return true; // OK
+    }
+
+    public void doNothing() {
+        return; // OK
+    }
+
+    public int[] getArray() {
+        return [1, 2, 3]; // OK: array initializer
+    }
+}

@@ -49,7 +49,7 @@ stmt
     | 'while' '(' expr ')' stmt #WhileStmt
     | expr '=' expr ';' #AssignStmt
     | '[' expr ']' '=' expr ';' #ArrayAssignStmt
-    | 'return' expr ';' #ReturnStmt
+    | 'return' (expr)? ';' #ReturnStmt
     | expr ';' #ExprStmt
     ;
 

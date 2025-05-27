@@ -1,0 +1,14 @@
+class NonVoidMethodMissingReturn {
+    public int foo() {
+        int x;
+        x = 10;
+        // Erro: método deve retornar int mas não tem statement return
+    }
+
+    public boolean bar() {
+        if (true) {
+            return false;
+        }
+        // Erro: nem todos os caminhos retornam valor
+    }
+}
