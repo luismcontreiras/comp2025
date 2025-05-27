@@ -228,4 +228,18 @@ public class SemanticAnalysisTest {
         TestUtils.mustFail(result);
         System.out.println(result.getReports());
     }
+
+    @Test
+    public void varargsCorrect() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/VarargsCorrect.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void varargsIllegalUsage() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/VarargsIllegalUsage.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println(result.getReports());
+    }
+
 }
