@@ -73,8 +73,18 @@ public class JmmOptimizationImpl implements JmmOptimization {
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
+        var config = ollirResult.getConfig();
 
-        //TODO: Do your OLLIR-based optimizations here
+        // Check if register allocation is enabled
+        int registerAllocation = ConfigOptions.getRegisterAllocation(config);
+
+        System.out.println("Register allocation (-r) setting: " + registerAllocation);
+
+        if (registerAllocation >= 0) {
+            // Apply register allocation
+            RegisterAllocation regAlloc = new RegisterAllocation(ollirResult, registerAllocation);
+            return regAlloc.allocateRegisters();
+        }
 
         return ollirResult;
     }
