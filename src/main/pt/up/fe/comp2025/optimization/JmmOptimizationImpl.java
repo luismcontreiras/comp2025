@@ -30,9 +30,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
         // Check if optimizations are enabled
         boolean optimizeEnabled = ConfigOptions.getOptimize(config);
 
-        // Debug output
         System.out.println("Optimization flag (-o) enabled: " + optimizeEnabled);
-        System.out.println("Config: " + config);
 
         if (!optimizeEnabled) {
             return semanticsResult;
@@ -41,24 +39,37 @@ public class JmmOptimizationImpl implements JmmOptimization {
         var root = semanticsResult.getRootNode();
         var table = semanticsResult.getSymbolTable();
 
-        boolean changed;
+        boolean globalChanged;
         int iterations = 0;
+        final int MAX_ITERATIONS = 5; // Reduce iterations to avoid issues
+
         do {
-            changed = false;
+            globalChanged = false;
             iterations++;
 
-            // Apply constant folding
+            System.out.println("--- Optimization iteration " + iterations + " ---");
+
+            // Apply constant propagation CAREFULLY
+            ConstantPropagationVisitor propagation = new ConstantPropagationVisitor(table);
+            propagation.visit(root);
+            boolean propagationChanged = propagation.didChange();
+            globalChanged |= propagationChanged;
+            System.out.println("Constant propagation changed: " + propagationChanged);
+
+            // Apply constant folding (this was working)
             ConstantFoldingVisitor folder = new ConstantFoldingVisitor(table);
             folder.visit(root);
-            changed = folder.didChange();
+            boolean foldingChanged = folder.didChange();
+            globalChanged |= foldingChanged;
+            System.out.println("Constant folding changed: " + foldingChanged);
 
-            System.out.println("Iteration " + iterations + ", changed: " + changed);
+            System.out.println("Total changed in iteration " + iterations + ": " + globalChanged);
 
-        } while (changed && iterations < 10);
+        } while (globalChanged && iterations < MAX_ITERATIONS);
 
+        System.out.println("Optimization completed after " + iterations + " iterations");
         return semanticsResult;
     }
-
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
