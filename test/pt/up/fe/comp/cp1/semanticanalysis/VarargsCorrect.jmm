@@ -1,0 +1,18 @@
+class VarargsCorrect {
+    public int sum(int a, int... values) {
+        return 0;
+    }
+
+    public int single(int... only) {
+        return 1;
+    }
+
+    public int none(int a, boolean b) {
+        return 2;
+    }
+
+    public static void main(String[] args) {
+        int[] arr;
+        arr = [1, 2, 3];
+    }
+}

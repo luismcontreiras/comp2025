@@ -1,0 +1,16 @@
+class VarargsIllegalUsage {
+    int... global; //
+
+    public int... broken() {
+        int... x;
+        return [1, 2];
+    }
+
+    public int invalid(int... v, int other) {
+        return 3;
+    }
+
+    public int tooMany(int... a, int... b) {
+        return 4;
+    }
+}
