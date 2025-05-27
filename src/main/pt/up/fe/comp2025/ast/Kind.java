@@ -50,7 +50,9 @@ public enum Kind {
     ARRAY_ACCESS_EXPR,    // from #ArrayAccessExpr
     ARRAY_LENGTH_EXPR,    // from #ArrayLengthExpr
     METHOD_CALL_EXPR,     // from #MethodCallExpr
-    BINARY_EXPR;          // from all binary operations unified as #BinaryExpr
+    BINARY_EXPR,         // from all binary operations unified as #BinaryExpr
+
+    ARRAY_ASSIGN;
 
     private final String name;
 

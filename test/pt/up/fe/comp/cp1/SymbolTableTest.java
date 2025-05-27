@@ -163,4 +163,6 @@ public class SymbolTableTest {
         assertEquals("int", locals.get(0).getType().getName());
 
     }
+
+
 }

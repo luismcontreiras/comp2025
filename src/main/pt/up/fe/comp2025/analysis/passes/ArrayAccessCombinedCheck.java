@@ -28,6 +28,8 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
         // Visit array access expressions.
         addVisit(Kind.ARRAY_ACCESS_EXPR, this::visitArrayAccessExpr);
+        addVisit(Kind.ARRAY_ASSIGN, this::visitArrayAssign);
+
     }
 
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
@@ -68,6 +70,68 @@ public class ArrayAccessCombinedCheck extends AnalysisVisitor {
                     message,
                     null));
         }
+
+        if ("IntegerLiteral".equals(indexExpr.getKind())) {
+            String valueStr = indexExpr.get("value");
+            try {
+                int value = Integer.parseInt(valueStr);
+                if (value < 0) {
+                    String message = "Array index must be a non-negative integer literal, found: " + value;
+                    addReport(Report.newError(Stage.SEMANTIC,
+                            indexExpr.getLine(),
+                            indexExpr.getColumn(),
+                            message,
+                            null));
+                }
+            } catch (NumberFormatException e) {
+                // Defensive: just in case the literal is malformed
+                String message = "Malformed integer literal in array index: " + valueStr;
+                addReport(Report.newError(Stage.SEMANTIC,
+                        indexExpr.getLine(),
+                        indexExpr.getColumn(),
+                        message,
+                        null));
+            }
+        }
+
         return null;
     }
+    private Void visitArrayAssign(JmmNode arrayAssign, SymbolTable table) {
+        if (arrayAssign.getNumChildren() < 3) return null;
+
+        TypeUtils typeUtils = new TypeUtils(table);
+
+        JmmNode arrayExpr = arrayAssign.getChild(0);
+        JmmNode indexExpr = arrayAssign.getChild(1);
+        JmmNode valueExpr = arrayAssign.getChild(2);
+
+        Type arrayType = typeUtils.getExprType(arrayExpr, currentMethod);
+        Type indexType = typeUtils.getExprType(indexExpr, currentMethod);
+        Type valueType = typeUtils.getExprType(valueExpr, currentMethod);
+
+        // Verificar se arrayExpr é mesmo um array
+        if (!arrayType.isArray()) {
+            String message = String.format("Trying to assign to non-array type: %s.", arrayType);
+            addReport(Report.newError(Stage.SEMANTIC,
+                    arrayExpr.getLine(), arrayExpr.getColumn(), message, null));
+        }
+
+        // Verificar se o índice é int
+        if (!indexType.getName().equals("int") || indexType.isArray()) {
+            String message = String.format("Array index must be of type int, but got: %s.", indexType);
+            addReport(Report.newError(Stage.SEMANTIC,
+                    indexExpr.getLine(), indexExpr.getColumn(), message, null));
+        }
+
+        // Verificar se o tipo do valor atribuído é compatível com o tipo base do array
+        if (arrayType.isArray() && (!valueType.getName().equals(arrayType.getName()) || valueType.isArray())) {
+            String message = String.format("Type mismatch: cannot assign %s to element of array of %s.",
+                    valueType, arrayType.getName());
+            addReport(Report.newError(Stage.SEMANTIC,
+                    valueExpr.getLine(), valueExpr.getColumn(), message, null));
+        }
+
+        return null;
+    }
+
 }

@@ -1,0 +1,8 @@
+class Test {
+    public int main() {
+        int[] arr;
+        arr = new int[5];
+        arr[0] = false;
+        return 0;
+    }
+}
