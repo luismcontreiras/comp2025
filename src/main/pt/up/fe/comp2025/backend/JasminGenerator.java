@@ -4,6 +4,7 @@ import org.specs.comp.ollir.ClassUnit;
 import org.specs.comp.ollir.LiteralElement;
 import org.specs.comp.ollir.Method;
 import org.specs.comp.ollir.Operand;
+import org.specs.comp.ollir.OperationType;
 import org.specs.comp.ollir.inst.AssignInstruction;
 import org.specs.comp.ollir.inst.BinaryOpInstruction;
 import org.specs.comp.ollir.inst.ReturnInstruction;
@@ -130,26 +131,26 @@ public class JasminGenerator {
 
 
     private String generateMethod(Method method) {
-        //System.out.println("STARTING METHOD " + method.getMethodName());
-        // set method
         currentMethod = method;
 
         var code = new StringBuilder();
 
-        // calculate modifier
         var modifier = types.getModifier(method.getMethodAccessModifier());
 
         var methodName = method.getMethodName();
 
-        // TODO: Hardcoded param types and return type, needs to be expanded
-        var params = "I";
-        var returnType = "I";
+        // Dynamic generation of params and return types
+        var params = method.getParams().stream()
+                .map(param -> types.getJasminType(param.getType()))
+                .collect(Collectors.joining());
+
+        var returnType = types.getJasminType(method.getReturnType());
 
         code.append("\n.method ").append(modifier)
                 .append(methodName)
-                .append("(" + params + ")" + returnType).append(NL);
+                .append("(").append(params).append(")").append(returnType).append(NL);
 
-        // Add limits
+        // Add initial stack/local limits
         code.append(TAB).append(".limit stack 99").append(NL);
         code.append(TAB).append(".limit locals 99").append(NL);
 
@@ -162,11 +163,10 @@ public class JasminGenerator {
 
         code.append(".end method\n");
 
-        // unset method
         currentMethod = null;
-        //System.out.println("ENDING METHOD " + method.getMethodName());
         return code.toString();
     }
+
 
     private String generateAssign(AssignInstruction assign) {
         var code = new StringBuilder();
@@ -187,8 +187,14 @@ public class JasminGenerator {
         var reg = currentMethod.getVarTable().get(operand.getName());
 
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("istore ").append(reg.getVirtualReg()).append(NL);
+        var typeCode = types.getJasminType(lhs.getType());
+
+        String storeInst = switch (typeCode) {
+            case "I", "Z" -> "istore";
+            default -> "astore";
+        };
+
+        code.append(storeInst).append(" ").append(reg.getVirtualReg()).append(NL);
 
         return code.toString();
     }
@@ -202,41 +208,77 @@ public class JasminGenerator {
     }
 
     private String generateOperand(Operand operand) {
-        // get register
         var reg = currentMethod.getVarTable().get(operand.getName());
+        var typeCode = types.getJasminType(operand.getType());
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        return "iload " + reg.getVirtualReg() + NL;
+        String loadInst = switch (typeCode) {
+            case "I", "Z" -> "iload";
+            default -> "aload";
+        };
+
+        return loadInst + " " + reg.getVirtualReg() + NL;
     }
 
     private String generateBinaryOp(BinaryOpInstruction binaryOp) {
         var code = new StringBuilder();
 
-        // load values on the left and on the right
         code.append(apply(binaryOp.getLeftOperand()));
         code.append(apply(binaryOp.getRightOperand()));
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        var typePrefix = "i";
-
-        // apply operation
         var op = switch (binaryOp.getOperation().getOpType()) {
-            case ADD -> "add";
-            case MUL -> "mul";
+            case ADD -> "iadd";
+            case SUB -> "isub";
+            case MUL -> "imul";
+            case DIV -> "idiv";
+            case AND -> "iand";
+            case LTH -> {
+                // Comparison result handling
+                String trueLabel = "LT_TRUE_" + System.nanoTime();
+                String endLabel = "LT_END_" + System.nanoTime();
+                yield """
+                if_icmplt %s
+                iconst_0
+                goto %s
+                %s:
+                iconst_1
+                %s:
+                """.formatted(trueLabel, endLabel, trueLabel, endLabel);
+            }
             default -> throw new NotImplementedException(binaryOp.getOperation().getOpType());
         };
 
-        code.append(typePrefix + op).append(NL);
+        if (!binaryOp.getOperation().getOpType().name().equals("LT")) {
+            code.append(op).append(NL);
+        } else {
+            code.append(op); // already has newlines in multi-line case
+        }
 
         return code.toString();
     }
+
 
     private String generateReturn(ReturnInstruction returnInst) {
         var code = new StringBuilder();
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("ireturn").append(NL);
+        if (!returnInst.hasReturnValue()) {
+            code.append("return").append(NL);
+        } else {
+            var returnValue = returnInst.getOperand().orElseThrow(() -> new IllegalStateException("Return operand expected"));
+            var returnType = types.getJasminType(returnValue.getType());
+
+            code.append(apply(returnValue));
+
+            switch (returnType) {
+                case "I", "Z" -> code.append("ireturn").append(NL);
+                case "V" -> code.append("return").append(NL);
+                default -> code.append("areturn").append(NL);
+            }
+        }
 
         return code.toString();
     }
+
+
+
+
 }
