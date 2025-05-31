@@ -57,6 +57,8 @@ public class JasminGenerator {
         generators.put(InvokeSpecialInstruction.class, this::generateInvokeSpecial);
         generators.put(NewInstruction.class, this::generateNew);
         generators.put(CallInstruction.class, this::generateCall);
+        generators.put(GetFieldInstruction.class, this::generateGetField);
+        generators.put(PutFieldInstruction.class, this::generatePutField);
 
     }
 
@@ -210,6 +212,10 @@ public class JasminGenerator {
                         currentStack += 2; // two operands
                         maxStack = Math.max(maxStack, currentStack);
                         currentStack -= 1; // result
+                    } else if (assign.getRhs() instanceof GetFieldInstruction) {
+                        currentStack += 1; // object reference
+                        maxStack = Math.max(maxStack, currentStack);
+                        currentStack = 1; // field value remains
                     } else if (assign.getRhs() instanceof CallInstruction) {
                         CallInstruction call = (CallInstruction) assign.getRhs();
                         // Object + arguments
@@ -227,6 +233,16 @@ public class JasminGenerator {
                     currentStack += 1 + call.getArguments().size();
                     maxStack = Math.max(maxStack, currentStack);
                     currentStack = 0; // call consumes all
+                    break;
+                case GETFIELD:
+                    currentStack += 1; // object reference
+                    maxStack = Math.max(maxStack, currentStack);
+                    currentStack = 1; // field value remains
+                    break;
+                case PUTFIELD:
+                    currentStack += 2; // object reference + value
+                    maxStack = Math.max(maxStack, currentStack);
+                    currentStack = 0; // putfield consumes both
                     break;
                 case RETURN:
                     currentStack += 1;
@@ -265,7 +281,7 @@ public class JasminGenerator {
 
             // Load indices
             for (Element index : arrayDest.getIndexOperands()) {
-                code.append(apply(index));
+                code.append(apply((TreeNode) index));
             }
 
             // Load value to store
@@ -348,7 +364,7 @@ public class JasminGenerator {
 
             // Load indices
             for (Element index : arrayOp.getIndexOperands()) {
-                code.append(apply(index));
+                code.append(apply((TreeNode) index));
             }
 
             // Load from array
@@ -454,7 +470,7 @@ public class JasminGenerator {
         // Load all method arguments
         if (!invoke.getArguments().isEmpty()) {
             for (Element arg : invoke.getArguments()) {
-                code.append(apply(arg));
+                code.append(apply((TreeNode) arg));
             }
         }
 
@@ -492,7 +508,7 @@ public class JasminGenerator {
         // Load all method arguments
         if (!invoke.getArguments().isEmpty()) {
             for (Element arg : invoke.getArguments()) {
-                code.append(apply(arg));
+                code.append(apply((TreeNode) arg));
             }
         }
 
@@ -540,7 +556,7 @@ public class JasminGenerator {
         if (returnType.toString().contains("array")) {
             // Array creation - load size argument first
             if (!newInst.getArguments().isEmpty()) {
-                code.append(apply(newInst.getArguments().get(0))); // Load array size
+                code.append(apply((TreeNode) newInst.getArguments().get(0))); // Load array size
             }
 
             if (returnType.toString().contains("int") || returnType.toString().contains("i32")) {
@@ -571,5 +587,62 @@ public class JasminGenerator {
         } else {
             throw new NotImplementedException("Call instruction type: " + call.getClass());
         }
+    }
+
+    private String generateGetField(GetFieldInstruction getField) {
+        var code = new StringBuilder();
+
+        // Load the object reference (usually 'this')
+        // The object is the first operand according to FieldInstruction
+        code.append(apply(getField.getObject()));
+
+        // Get field name from the second operand (field operand)
+        String fieldName = getField.getField().getName();
+
+        // Get field type from the instruction's field type
+        String fieldType = types.getJasminType(getField.getFieldType());
+
+        // Get class name (usually current class)
+        String className = ollirResult.getOllirClass().getClassName();
+
+        code.append("getfield ")
+                .append(className).append("/")
+                .append(fieldName).append(" ")
+                .append(fieldType)
+                .append(NL);
+
+        return code.toString();
+    }
+
+    private String generatePutField(PutFieldInstruction putField) {
+        var code = new StringBuilder();
+
+        // Load the object reference (usually 'this')
+        // The object is the first operand according to FieldInstruction
+        code.append(apply(putField.getObject()));
+
+        // Load the value to store (third operand - additional operands beyond object and field)
+        List<Element> operands = putField.getOperands();
+        if (operands.size() > 2) {
+            // The value to store should be the third operand
+            code.append(apply((TreeNode) operands.get(2)));
+        }
+
+        // Get field name from the second operand (field operand)
+        String fieldName = putField.getField().getName();
+
+        // Get field type from the instruction's field type
+        String fieldType = types.getJasminType(putField.getFieldType());
+
+        // Get class name (usually current class)
+        String className = ollirResult.getOllirClass().getClassName();
+
+        code.append("putfield ")
+                .append(className).append("/")
+                .append(fieldName).append(" ")
+                .append(fieldType)
+                .append(NL);
+
+        return code.toString();
     }
 }
