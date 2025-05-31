@@ -59,6 +59,9 @@ public class JasminGenerator {
         generators.put(CallInstruction.class, this::generateCall);
         generators.put(GetFieldInstruction.class, this::generateGetField);
         generators.put(PutFieldInstruction.class, this::generatePutField);
+        generators.put(CondBranchInstruction.class, this::generateCondBranch);
+        generators.put(GotoInstruction.class, this::generateGoto);
+        generators.put(InvokeStaticInstruction.class, this::generateInvokeStatic);
 
     }
 
@@ -69,6 +72,103 @@ public class JasminGenerator {
         //code.append("; ").append(node).append(NL);
 
         code.append(generators.apply(node));
+
+        return code.toString();
+    }
+
+    private String generateCondBranch(CondBranchInstruction condBranch) {
+        var code = new StringBuilder();
+
+        // Get the label to branch to
+        String label = condBranch.getLabel();
+
+        // Get the condition instruction
+        Instruction condition = condBranch.getCondition();
+
+        // Handle different condition types
+        if (condition instanceof BinaryOpInstruction) {
+            BinaryOpInstruction binOp = (BinaryOpInstruction) condition;
+
+            // Load operands for comparison
+            code.append(apply(binOp.getLeftOperand()));
+            code.append(apply(binOp.getRightOperand()));
+
+            // Determine the operation type and generate appropriate branch instruction
+            var operation = binOp.getOperation().getOpType();
+            String branchInst = switch (operation) {
+                case LTH -> "if_icmplt";
+                case GTH -> "if_icmpgt";
+                case LTE -> "if_icmple";
+                case GTE -> "if_icmpge";
+                case EQ -> "if_icmpeq";
+                case NEQ -> "if_icmpne";
+                default -> "if_icmplt"; // fallback
+            };
+            code.append(branchInst).append(" ").append(label).append(NL);
+        } else if (condition instanceof SingleOpInstruction) {
+            SingleOpInstruction singleOp = (SingleOpInstruction) condition;
+
+            // Load single operand
+            code.append(apply(singleOp.getSingleOperand()));
+
+            // For single operand, assume it's a boolean check
+            code.append("ifne ").append(label).append(NL);
+        } else {
+            // Fallback: load all operands and use simple branch
+            for (Element operand : condBranch.getOperands()) {
+                code.append(apply((TreeNode) operand));
+            }
+
+            if (condBranch.getOperands().size() == 1) {
+                code.append("ifne ").append(label).append(NL);
+            } else {
+                code.append("if_icmpne ").append(label).append(NL);
+            }
+        }
+
+        return code.toString();
+    }
+
+    private String generateGoto(GotoInstruction gotoInst) {
+        return "goto " + gotoInst.getLabel() + NL;
+    }
+
+    private String generateInvokeStatic(InvokeStaticInstruction invoke) {
+        var code = new StringBuilder();
+
+        // Load all method arguments
+        if (!invoke.getArguments().isEmpty()) {
+            for (Element arg : invoke.getArguments()) {
+                code.append(apply((TreeNode) arg));
+            }
+        }
+
+        // Get method name
+        var methodName = ((LiteralElement) invoke.getMethodName()).getLiteral().replace("\"", "");
+
+        // Get class name from the caller (should be a class reference)
+        String className;
+        if (invoke.getCaller() instanceof Operand) {
+            className = ((Operand) invoke.getCaller()).getName();
+        } else {
+            className = "UnknownClass";
+        }
+
+        // Build method descriptor
+        var descriptor = new StringBuilder("(");
+        if (!invoke.getArguments().isEmpty()) {
+            for (Element arg : invoke.getArguments()) {
+                descriptor.append(types.getJasminType(arg.getType()));
+            }
+        }
+        descriptor.append(")");
+        descriptor.append(types.getJasminType(invoke.getReturnType()));
+
+        code.append("invokestatic ")
+                .append(className).append("/")
+                .append(methodName)
+                .append(descriptor)
+                .append(NL);
 
         return code.toString();
     }
@@ -171,6 +271,11 @@ public class JasminGenerator {
         // Generate all instructions first to calculate limits properly
         var methodCode = new StringBuilder();
         for (var inst : method.getInstructions()) {
+            // Handle labels
+            for (String label : method.getLabels(inst)) {
+                methodCode.append(label).append(":").append(NL);
+            }
+
             var instCode = StringLines.getLines(apply(inst)).stream()
                     .collect(Collectors.joining(NL + TAB, TAB, NL));
             methodCode.append(instCode);
@@ -247,6 +352,17 @@ public class JasminGenerator {
                 case RETURN:
                     currentStack += 1;
                     maxStack = Math.max(maxStack, currentStack);
+                    break;
+                case BRANCH:
+                    if (inst instanceof CondBranchInstruction) {
+                        CondBranchInstruction condBranch = (CondBranchInstruction) inst;
+                        currentStack += condBranch.getOperands().size();
+                        maxStack = Math.max(maxStack, currentStack);
+                        currentStack = 0; // branch consumes operands
+                    }
+                    break;
+                case GOTO:
+                    // goto doesn't affect stack
                     break;
                 default:
                     currentStack += 1;
