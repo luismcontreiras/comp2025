@@ -1,13 +1,7 @@
 package pt.up.fe.comp2025.backend;
 
-import org.specs.comp.ollir.ClassUnit;
-import org.specs.comp.ollir.LiteralElement;
-import org.specs.comp.ollir.Method;
-import org.specs.comp.ollir.Operand;
-import org.specs.comp.ollir.inst.AssignInstruction;
-import org.specs.comp.ollir.inst.BinaryOpInstruction;
-import org.specs.comp.ollir.inst.ReturnInstruction;
-import org.specs.comp.ollir.inst.SingleOpInstruction;
+import org.specs.comp.ollir.*;
+import org.specs.comp.ollir.inst.*;
 import org.specs.comp.ollir.tree.TreeNode;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
@@ -59,6 +53,8 @@ public class JasminGenerator {
         generators.put(Operand.class, this::generateOperand);
         generators.put(BinaryOpInstruction.class, this::generateBinaryOp);
         generators.put(ReturnInstruction.class, this::generateReturn);
+        generators.put(InvokeVirtualInstruction.class, this::generateInvokeVirtual);
+
     }
 
     private String apply(TreeNode node) {
@@ -130,43 +126,58 @@ public class JasminGenerator {
 
 
     private String generateMethod(Method method) {
-        //System.out.println("STARTING METHOD " + method.getMethodName());
-        // set method
         currentMethod = method;
 
         var code = new StringBuilder();
 
-        // calculate modifier
+        // Access modifier (public, private, etc.)
         var modifier = types.getModifier(method.getMethodAccessModifier());
-
         var methodName = method.getMethodName();
 
-        // TODO: Hardcoded param types and return type, needs to be expanded
-        var params = "I";
-        var returnType = "I";
+        // Parameters and return type descriptor
+        var params = method.getParams().stream()
+                .map(param -> types.getJasminType(param.getType()))
+                .collect(Collectors.joining());
 
-        code.append("\n.method ").append(modifier)
-                .append(methodName)
-                .append("(" + params + ")" + returnType).append(NL);
+        var returnType = types.getJasminType(method.getReturnType());
 
-        // Add limits
-        code.append(TAB).append(".limit stack 99").append(NL);
-        code.append(TAB).append(".limit locals 99").append(NL);
-
+        // Generate all instructions first
+        var methodCode = new StringBuilder();
         for (var inst : method.getInstructions()) {
             var instCode = StringLines.getLines(apply(inst)).stream()
                     .collect(Collectors.joining(NL + TAB, TAB, NL));
-
-            code.append(instCode);
+            methodCode.append(instCode);
         }
 
+        // Now estimate limits AFTER generating code
+        int estimatedStackSize = 3;
+
+        int estimatedLocals = method.getVarTable().values().stream()
+                .mapToInt(var -> var.getVirtualReg())
+                .max()
+                .orElse(0) + 1;
+
+        // Emit method header
+        code.append("\n.method ").append(modifier)
+                .append(methodName)
+                .append("(").append(params).append(")").append(returnType).append(NL);
+
+        code.append(TAB).append(".limit stack ").append(estimatedStackSize).append(NL);
+        code.append(TAB).append(".limit locals ").append(estimatedLocals).append(NL);
+
+        // Add method instructions
+        code.append(methodCode);
+
+        // End method
         code.append(".end method\n");
 
-        // unset method
         currentMethod = null;
-        //System.out.println("ENDING METHOD " + method.getMethodName());
+        System.out.println("Generated Jasmin for method " + method.getMethodName() + ":\n" + code);
+
         return code.toString();
     }
+
+
 
     private String generateAssign(AssignInstruction assign) {
         var code = new StringBuilder();
@@ -187,8 +198,14 @@ public class JasminGenerator {
         var reg = currentMethod.getVarTable().get(operand.getName());
 
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("istore ").append(reg.getVirtualReg()).append(NL);
+        var typeCode = types.getJasminType(lhs.getType());
+
+        String storeInst = switch (typeCode) {
+            case "I", "Z" -> "istore";
+            default -> "astore";
+        };
+
+        code.append(storeInst).append(" ").append(reg.getVirtualReg()).append(NL);
 
         return code.toString();
     }
@@ -202,41 +219,159 @@ public class JasminGenerator {
     }
 
     private String generateOperand(Operand operand) {
-        // get register
         var reg = currentMethod.getVarTable().get(operand.getName());
+        var typeCode = types.getJasminType(operand.getType());
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        return "iload " + reg.getVirtualReg() + NL;
+        String loadInst = switch (typeCode) {
+            case "I", "Z" -> "iload";
+            default -> "aload";
+        };
+
+        return loadInst + " " + reg.getVirtualReg() + NL;
     }
 
     private String generateBinaryOp(BinaryOpInstruction binaryOp) {
         var code = new StringBuilder();
 
-        // load values on the left and on the right
         code.append(apply(binaryOp.getLeftOperand()));
         code.append(apply(binaryOp.getRightOperand()));
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        var typePrefix = "i";
-
-        // apply operation
         var op = switch (binaryOp.getOperation().getOpType()) {
-            case ADD -> "add";
-            case MUL -> "mul";
+            case ADD -> "iadd";
+            case SUB -> "isub";
+            case MUL -> "imul";
+            case DIV -> "idiv";
+            case AND -> "iand";
+            case LTH -> {
+                // Comparison result handling
+                String trueLabel = "LT_TRUE_" + System.nanoTime();
+                String endLabel = "LT_END_" + System.nanoTime();
+                yield """
+                if_icmplt %s
+                iconst_0
+                goto %s
+                %s:
+                iconst_1
+                %s:
+                """.formatted(trueLabel, endLabel, trueLabel, endLabel);
+            }
             default -> throw new NotImplementedException(binaryOp.getOperation().getOpType());
         };
 
-        code.append(typePrefix + op).append(NL);
+        if (!binaryOp.getOperation().getOpType().name().equals("LT")) {
+            code.append(op).append(NL);
+        } else {
+            code.append(op); // already has newlines in multi-line case
+        }
 
         return code.toString();
     }
+
 
     private String generateReturn(ReturnInstruction returnInst) {
         var code = new StringBuilder();
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("ireturn").append(NL);
+        if (!returnInst.hasReturnValue()) {
+            code.append("return").append(NL);
+        } else {
+            var returnValue = returnInst.getOperand().orElseThrow(() -> new IllegalStateException("Return operand expected"));
+            var returnType = types.getJasminType(returnValue.getType());
+
+            code.append(apply(returnValue));
+
+            switch (returnType) {
+                case "I", "Z" -> code.append("ireturn").append(NL);
+                case "V" -> code.append("return").append(NL);
+                default -> code.append("areturn").append(NL);
+            }
+        }
 
         return code.toString();
     }
+
+    private String generateInvokeVirtual(InvokeVirtualInstruction invoke) {
+        var code = new StringBuilder();
+
+        // Load the object being called on (e.g., 'this' or some object reference)
+        code.append(apply(invoke.getCaller()));
+
+        // Load all method arguments
+        for (Element arg : invoke.getArguments()) {
+            code.append(apply(arg));
+        }
+
+        // Determine method name
+        var methodName = ((LiteralElement) invoke.getMethodName()).getLiteral().replace("\"", "");
+
+        // Class where method is defined — assume current class unless it's a field
+        var className = ollirResult.getOllirClass().getClassName();
+
+        // Build method descriptor
+        var descriptor = new StringBuilder("(");
+        for (Element arg : invoke.getArguments()) {
+            descriptor.append(types.getJasminType(arg.getType()));
+        }
+        descriptor.append(")");
+        descriptor.append(types.getJasminType(invoke.getReturnType()));
+
+        code.append("invokevirtual ")
+                .append(className).append("/")
+                .append(methodName)
+                .append(descriptor)
+                .append(NL);
+
+        return code.toString();
+    }
+
+    private int estimateStackDepth(Method method) {
+        int maxDepth = 0;
+        int currentDepth = 0;
+
+        for (var inst : method.getInstructions()) {
+            switch (inst.getInstType()) {
+                case ASSIGN -> {
+                    var assign = (AssignInstruction) inst;
+                    var rhs = assign.getRhs();
+                    String rhsType = rhs.getClass().getSimpleName();
+
+                    switch (rhsType) {
+                        case "BinaryOpInstruction" -> {
+                            currentDepth += 2; // load left and right
+                            currentDepth -= 1; // one result remains
+                        }
+                        case "UnaryOpInstruction", "SingleOpInstruction", "LiteralElement" -> {
+                            currentDepth += 1;
+                        }
+                        case "CallInstruction" -> {
+                            var call = (CallInstruction) rhs;
+                            int args = call.getArguments().size();
+                            if (call.getCaller() != null) args += 1;
+                            currentDepth += args;
+
+                            // if return value is kept, add it
+                            if (!types.getJasminType(call.getReturnType()).equals("V"))
+                                currentDepth += 1;
+
+                            // method consumes all arguments and object
+                            currentDepth -= args;
+                        }
+                        default -> currentDepth += 1;
+                    }
+
+                    // storing a value pops 1
+                    currentDepth -= 1;
+                }
+
+                case RETURN -> currentDepth += 1;
+
+                default -> currentDepth += 1;
+            }
+
+            maxDepth = Math.max(maxDepth, currentDepth);
+        }
+
+        return maxDepth;
+    }
+
+
 }
