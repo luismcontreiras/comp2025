@@ -316,6 +316,16 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         StringBuilder code = new StringBuilder();
 
+        // Generate import statements at the beginning of the file
+        for (String importStr : table.getImports()) {
+            code.append("import ").append(importStr).append(";").append(NL);
+        }
+
+        // Add an extra line after imports if any
+        if (!table.getImports().isEmpty()) {
+            code.append(NL);
+        }
+
         node.getChildren().stream()
                 .map(this::visit)
                 .forEach(code::append);
