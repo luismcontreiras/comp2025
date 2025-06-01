@@ -408,4 +408,81 @@ public class OllirTest {
 
         System.out.println("✓ Test passed: Method calls with same name but different return types handled correctly");
     }
+
+    @Test
+    public void controlFlowNestedIfWhile() {
+        var result = getOllirResult("control_flow/NestedIfWhile.jmm");
+        
+        System.out.println("---------------------- NESTED IF-WHILE OLLIR ----------------------");
+        System.out.println(result.getOllirCode());
+        System.out.println("----------------------------------------------------------------");
+
+        var method = CpUtils.getMethod(result, "testNestedControl");
+
+        // Test that we have the expected control flow structures
+        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
+        CpUtils.assertTrue("Should have at least 2 conditional branches (while + if)", branches.size() >= 2, result);
+
+        var gotos = CpUtils.assertInstExists(GotoInstruction.class, method, result);
+        CpUtils.assertTrue("Should have at least 2 gotos", gotos.size() >= 2, result);
+
+        // Check that labels are properly unique and follow naming convention
+        String ollirCode = result.getOllirCode();
+        
+        // Should have while loop labels
+        boolean hasWhileBodyLabel = ollirCode.contains("whilebody_") || ollirCode.contains("loop");
+        boolean hasEndWhileLabel = ollirCode.contains("endwhile_") || ollirCode.contains("endloop");
+        
+        // Should have if-else labels
+        boolean hasIfBodyLabel = ollirCode.contains("ifbody_") || ollirCode.contains("then");
+        boolean hasEndIfLabel = ollirCode.contains("endif_") || ollirCode.contains("else");
+        
+        CpUtils.assertTrue("Should have while body label", hasWhileBodyLabel, result);
+        CpUtils.assertTrue("Should have end while label", hasEndWhileLabel, result);
+        CpUtils.assertTrue("Should have if body label", hasIfBodyLabel, result);
+        CpUtils.assertTrue("Should have end if label", hasEndIfLabel, result);
+
+        System.out.println("✓ Test passed: Nested if-while control flow generates proper labels");
+    }
+
+    @Test
+    public void complexNestedControlFlow() {
+        var result = getOllirResult("control_flow/ComplexNestedControl.jmm");
+        
+        System.out.println("---------------------- COMPLEX NESTED CONTROL FLOW OLLIR ----------------------");
+        System.out.println(result.getOllirCode());
+        System.out.println("------------------------------------------------------------------------");
+
+        var method = CpUtils.getMethod(result, "testComplexNesting");
+
+        // Test that we have the expected control flow structures
+        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
+        CpUtils.assertTrue("Should have at least 3 conditional branches", branches.size() >= 3, result);
+
+        var gotos = CpUtils.assertInstExists(GotoInstruction.class, method, result);
+        CpUtils.assertTrue("Should have at least 4 gotos", gotos.size() >= 4, result);
+
+        // Check that labels are properly unique
+        String ollirCode = result.getOllirCode();
+        
+        // Use regex to find all labels (patterns like "label:")
+        java.util.regex.Pattern labelPattern = java.util.regex.Pattern.compile("([a-zA-Z0-9_]+):");
+        java.util.regex.Matcher matcher = labelPattern.matcher(ollirCode);
+        
+        java.util.Set<String> uniqueLabels = new java.util.HashSet<>();
+        java.util.List<String> allLabels = new java.util.ArrayList<>();
+        
+        while (matcher.find()) {
+            String label = matcher.group(1);
+            allLabels.add(label);
+            uniqueLabels.add(label);
+        }
+        
+        // All labels should be unique
+        CpUtils.assertTrue("All labels should be unique", allLabels.size() == uniqueLabels.size(), result);
+        CpUtils.assertTrue("Should have at least 6 distinct labels for complex nesting", uniqueLabels.size() >= 6, result);
+
+        System.out.println("✓ Test passed: Complex nested control flow generates unique labels");
+        System.out.println("Found " + uniqueLabels.size() + " unique labels: " + uniqueLabels);
+    }
 }

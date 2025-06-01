@@ -381,10 +381,10 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         var condExpr = exprVisitor.visit(node.getChild(0));
         code.append(condExpr.getComputation());
 
-        // Create a unique label for the else branch and the end
-        String elseLabel = ollirTypes.nextTemp("else");
-        String endLabel = ollirTypes.nextTemp("endif");
-        String thenLabel = ollirTypes.nextTemp("then");
+        // Create unique labels for the if/else structure using the new method
+        String elseLabel = ollirTypes.nextControlFlowLabel("else");
+        String endLabel = ollirTypes.nextControlFlowLabel("endif");
+        String thenLabel = ollirTypes.nextControlFlowLabel("then");
 
         // If condition is false, jump to else
         code.append("if (").append(condExpr.getCode()).append(") goto ").append(thenLabel).append(END_STMT);
@@ -405,8 +405,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private String visitWhileStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
 
-        String loopLabel = ollirTypes.nextTemp("loop");
-        String endLabel = ollirTypes.nextTemp("endloop");
+        // Use the nextControlFlowLabel method to create unique labels
+        String loopLabel = ollirTypes.nextControlFlowLabel("loop");
+        String endLabel = ollirTypes.nextControlFlowLabel("endloop");
 
         code.append(loopLabel).append(":").append(NL);
 
