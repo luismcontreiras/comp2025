@@ -269,4 +269,28 @@ public class SemanticAnalysisTest {
         TestUtils.noErrors(result);
     }
 
+    @Test
+    public void assignmentTypeCheckComprehensive() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/AssignmentTypeCheckComprehensive.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Assignment Type Check Comprehensive Test Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void strictPrimitiveTypeCheck() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/StrictPrimitiveTypeCheck.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Strict Primitive Type Check Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void arrayIndexTypeCheck() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/ArrayIndexTypeCheck.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Array Index Type Check Reports:");
+        System.out.println(result.getReports());
+    }
+
 }

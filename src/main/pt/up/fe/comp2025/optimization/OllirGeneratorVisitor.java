@@ -96,7 +96,25 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         }
 
         // Regular variable assignment
-        String lhsName = lhs.hasAttribute("value") ? lhs.get("value") : "UNKNOWN_ID";
+        // Handle special cases for left-hand side expressions
+        JmmNode effectiveLhs = lhs;
+        
+        // If the lhs is a ParenthesizedExpr, unwrap it to get the actual variable node
+        if (lhs.getKind().equals("ParenthesizedExpr")) {
+            effectiveLhs = lhs.getChild(0);
+        }
+        
+        // Only try to access 'value' attribute if the node type is expected to have it
+        // Using final for lhsName since it's used in lambda expressions
+        final String lhsName;
+        if (effectiveLhs.getKind().equals("VarRefExpr") || 
+            effectiveLhs.getKind().equals("PostfixExpr") || 
+            effectiveLhs.hasAttribute("value")) {
+            lhsName = effectiveLhs.get("value");
+        } else {
+            lhsName = "UNKNOWN_ID";
+        }
+        
         Type lhsType = types.getExprType(lhs, methodName);
         String ollirType = ollirTypes.toOllirType(lhsType);
 
@@ -105,7 +123,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                         table.getParameters(methodName).stream().anyMatch(s -> s.getName().equals(lhsName));
 
         boolean isField = table.getFields().stream().anyMatch(f -> f.getName().equals(lhsName));
-
 
         if (!isLocalOrParam && isField) {
             code.append("putfield(this.").append(table.getClassName())
