@@ -164,6 +164,11 @@ public class AssignmentTypeCheck extends AnalysisVisitor {
             return left.getName().equals(right.getName()) && left.isArray() == right.isArray();
         }
 
+        // Special case: if right type is "unknown" (imported method), assume compatibility
+        if ("unknown".equals(right.getName())) {
+            return true; // Allow assignment from unknown imported method calls
+        }
+
         // Object types: exact match
         if (left.getName().equals(right.getName())) {
             return true;

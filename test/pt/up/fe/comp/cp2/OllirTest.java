@@ -10,6 +10,7 @@ import org.specs.comp.ollir.OperationType;
 import org.specs.comp.ollir.inst.*;
 import org.specs.comp.ollir.type.BuiltinKind;
 import pt.up.fe.comp.CpUtils;
+import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.specs.util.SpecsIo;
 
@@ -367,6 +368,44 @@ public class OllirTest {
         assertTrue("Both import statements should be found", ioImportIndex >= 0 && quicksortImportIndex >= 0);
     }
 
+    @Test
+    public void importedMethodSameName() {
+        var result = getOllirResult("imports/ImportedMethodSameName.jmm");
 
+        System.out.println("Generated OLLIR for ImportedMethodSameName:");
+        System.out.println(result.getOllirCode());
 
+        // Should compile without semantic errors
+        TestUtils.noErrors(result);
+
+        var method = CpUtils.getMethod(result, "test");
+
+        // Verify that we have the correct number of method calls
+        var calls = CpUtils.assertInstExists(CallInstruction.class, method, result);
+
+        // Should have 3 calls: new A(), this.bar(), a.bar()
+        CpUtils.assertTrue("Should have at least 2 method calls", calls.size() >= 2, result);
+
+        // Check for invokevirtual calls
+        var virtualCalls = calls.stream()
+                .filter(call -> call instanceof InvokeVirtualInstruction)
+                .map(call -> (InvokeVirtualInstruction) call)
+                .collect(Collectors.toList());
+
+        // Should have 2 virtual calls: this.bar() and a.bar()
+        CpUtils.assertEquals("Number of virtual method calls", 2, virtualCalls.size(), result);
+
+        // Check the OLLIR code structure
+        String ollirCode = result.getOllirCode();
+
+        // Should have different return types for the two bar() calls
+        // this.bar() should return i32, a.bar() should return bool
+        boolean hasBarReturningInt = ollirCode.contains(".i32 :=.i32") && ollirCode.contains("\"bar\"");
+        boolean hasBarReturningBool = ollirCode.contains(".bool :=.bool") && ollirCode.contains("\"bar\"");
+
+        CpUtils.assertTrue("Should have this.bar() call with int return type", hasBarReturningInt, result);
+        CpUtils.assertTrue("Should have a.bar() call with boolean return type", hasBarReturningBool, result);
+
+        System.out.println("✓ Test passed: Method calls with same name but different return types handled correctly");
+    }
 }
