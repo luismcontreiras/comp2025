@@ -293,4 +293,44 @@ public class SemanticAnalysisTest {
         System.out.println(result.getReports());
     }
 
+    @Test
+    public void testDeclarationOrder() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/test_declaration_order.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Declaration Order Test Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void testVariousScenarios() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/test_various_scenarios.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Various Scenarios Test Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void testVoidType() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/test_void_type.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Void Type Test Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void simpleVoidTest() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/simple_void_test.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Simple Void Test Reports:");
+        System.out.println(result.getReports());
+    }
+
+    @Test
+    public void simpleVoidTest2() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/semanticanalysis/simple_void_test2.jmm"));
+        TestUtils.mustFail(result);
+        System.out.println("Simple Void Test 2 Reports:");
+        System.out.println(result.getReports());
+    }
+
 }

@@ -34,6 +34,8 @@ public class JmmAnalysisImpl implements JmmAnalysis {
         return List.of(
                 new DuplicateCheck(),
                 new UndeclaredVariable(),
+                new VariableDeclarationOrderCheck(),
+                new VoidTypeVariableCheck(),
                 new BinaryOperationCheck(),
                 new ArrayArithmeticCheck(),
                 new ArrayAccessCombinedCheck(),
