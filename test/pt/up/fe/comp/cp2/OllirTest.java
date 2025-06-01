@@ -3,7 +3,9 @@ package pt.up.fe.comp.cp2;
 import org.junit.Test;
 import org.specs.comp.ollir.ArrayOperand;
 import org.specs.comp.ollir.ClassUnit;
+import org.specs.comp.ollir.LiteralElement;
 import org.specs.comp.ollir.Method;
+import org.specs.comp.ollir.Operand;
 import org.specs.comp.ollir.OperationType;
 import org.specs.comp.ollir.inst.*;
 import org.specs.comp.ollir.type.BuiltinKind;
@@ -341,5 +343,30 @@ public class OllirTest {
                 .filter(element -> element instanceof ArrayOperand).count();
         CpUtils.assertEquals("Number of array reads", 6, numArrayReads, result);
     }
+
+    @Test
+    public void importStatements() {
+        var result = getOllirResult("imports/Import.jmm");
+        
+        // Get the generated OLLIR code
+        String ollirCode = result.getOllirCode();
+        System.out.println("Generated OLLIR:");
+        System.out.println(ollirCode);
+        
+        // Check that the import statements are present at the beginning
+        assertTrue("OLLIR code should contain 'import io;'", ollirCode.contains("import io;"));
+        assertTrue("OLLIR code should contain 'import Quicksort;'", ollirCode.contains("import Quicksort;"));
+        
+        // Verify imports appear before class declaration
+        int ioImportIndex = ollirCode.indexOf("import io;");
+        int quicksortImportIndex = ollirCode.indexOf("import Quicksort;");
+        int classIndex = ollirCode.indexOf("Test extends Quicksort");
+        
+        assertTrue("'import io;' should appear before class declaration", ioImportIndex < classIndex);
+        assertTrue("'import Quicksort;' should appear before class declaration", quicksortImportIndex < classIndex);
+        assertTrue("Both import statements should be found", ioImportIndex >= 0 && quicksortImportIndex >= 0);
+    }
+
+
 
 }
