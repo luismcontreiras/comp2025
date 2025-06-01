@@ -44,6 +44,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
                 new ConditionCheck(),
                 new ArrayInitializerUsageCheck(),
                 new VarargsCheck(),
+                new StaticMethodFieldAccessCheck(),
                 new ReturnTypeCheck()
         );
 
